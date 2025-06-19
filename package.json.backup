@@ -1,0 +1,28 @@
+{
+  "name": "paperly",
+  "version": "1.0.0",
+  "description": "AI 기반 맞춤형 학습 플랫폼",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev:docker && npm run dev:backend",
+    "dev:docker": "docker-compose -f infrastructure/docker/docker-compose.yml up -d",
+    "dev:backend": "npm run dev --workspace=@paperly/backend",
+    "dev:mobile": "cd apps/mobile && flutter run",
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "lint": "npm run lint --workspaces",
+    "clean": "npm run clean --workspaces && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}

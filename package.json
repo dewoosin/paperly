@@ -1,0 +1,38 @@
+{
+  "name": "paperly",
+  "version": "1.0.0",
+  "description": "AI 기반 맞춤형 학습 플랫폼",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev:docker && npm run dev:backend",
+    "dev:docker": "docker-compose -f infrastructure/docker/docker-compose.yml up -d",
+    "dev:backend": "npm run dev --workspace=@paperly/backend",
+    "dev:mobile": "cd apps/mobile && flutter run",
+    "dev:mobile:ios": "cd apps/mobile && flutter run -d ios",
+    "dev:mobile:android": "cd apps/mobile && flutter run -d android",
+    "build": "npm run build --workspaces",
+    "build:mobile:ios": "cd apps/mobile && flutter build ios",
+    "build:mobile:android": "cd apps/mobile && flutter build apk",
+    "test": "npm run test --workspaces && npm run test:mobile",
+    "test:mobile": "cd apps/mobile && flutter test",
+    "lint": "npm run lint --workspaces && npm run lint:mobile",
+    "lint:mobile": "cd apps/mobile && flutter analyze",
+    "clean": "npm run clean --workspaces && npm run clean:mobile && rm -rf node_modules",
+    "clean:mobile": "cd apps/mobile && flutter clean",
+    "docker:stop": "docker-compose -f infrastructure/docker/docker-compose.yml down",
+    "docker:logs": "docker-compose -f infrastructure/docker/docker-compose.yml logs -f",
+    "docker:reset": "docker-compose -f infrastructure/docker/docker-compose.yml down -v && npm run dev:docker"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}
