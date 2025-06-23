@@ -4,7 +4,7 @@
   "description": "Paperly API 서버",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch src/main.ts",
     "build": "tsc",
     "start": "node dist/index.ts",
     "test": "jest",
@@ -12,29 +12,38 @@
     "clean": "rm -rf dist node_modules"
   },
   "dependencies": {
-    "express": "^4.19.0",
+    "bcrypt": "^5.1.1",
+    "compression": "^1.8.0",
     "cors": "^2.8.5",
-    "helmet": "^7.1.0",
     "dotenv": "^16.4.0",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^7.2.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "nodemailer": "^7.0.3",
     "pg": "^8.11.0",
-    "jsonwebtoken": "^9.0.0",
-    "bcrypt": "^5.1.0",
-    "zod": "^3.22.0",
-    "winston": "^3.11.0"
+    "reflect-metadata": "^0.2.2",
+    "tsyringe": "^4.10.0",
+    "winston": "^3.17.0",
+    "winston-daily-rotate-file": "^5.0.0",
+    "zod": "^3.22.0"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21",
-    "@types/node": "^20.0.0",
-    "@types/cors": "^2.8.17",
     "@types/bcrypt": "^5.0.2",
+    "@types/compression": "^1.8.1",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.23",
+    "@types/jest": "^29.5.11",
     "@types/jsonwebtoken": "^9.0.5",
+    "@types/morgan": "^1.9.10",
+    "@types/node": "^20.19.1",
     "@types/pg": "^8.11.0",
-    "typescript": "^5.0.0",
-    "tsx": "^4.7.0",
     "@typescript-eslint/eslint-plugin": "^6.19.0",
     "@typescript-eslint/parser": "^6.19.0",
     "eslint": "^8.56.0",
     "jest": "^29.7.0",
-    "@types/jest": "^29.5.11"
+    "tsx": "^4.7.0",
+    "typescript": "^5.0.0"
   }
 }
