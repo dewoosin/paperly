@@ -22,13 +22,13 @@ class ApiConfig {
       return _prodBaseUrl;
     }
     
-    // 웹 환경에서는 프록시 사용
-    if (kIsWeb) {
-      return _webDevBaseUrl;
-    }
-    
-    // 모바일 개발 환경
+    // 개발 환경에서는 모바일, 웹 모두 직접 백엔드 서버 연결
     return _devBaseUrl;
+    
+    // 기존 웹 프록시 코드 주석 처리
+    // if (kIsWeb) {
+    //   return _webDevBaseUrl;
+    // }
   }
   
   /// 연결 타임아웃 (초)
