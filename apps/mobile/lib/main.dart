@@ -1,3 +1,5 @@
+// lib/main.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/cupertino.dart';
@@ -121,25 +123,35 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _checkAuthStatus() async {
-    // 최소 스플래시 표시 시간
-    await Future.delayed(const Duration(seconds: 2));
-    
-    if (!mounted) return;
-    
-    final authProvider = context.read<AuthProvider>();
-    
-    // 초기화 대기
-    while (!authProvider.isInitialized) {
-      await Future.delayed(const Duration(milliseconds: 100));
-    }
-    
-    if (!mounted) return;
-    
-    // 인증 상태에 따라 화면 이동
-    if (authProvider.isAuthenticated) {
-      Navigator.of(context).pushReplacementNamed('/home');
-    } else {
-      Navigator.of(context).pushReplacementNamed('/login');
+    try {
+      // 최소 스플래시 표시 시간
+      await Future.delayed(const Duration(seconds: 2));
+      
+      if (!mounted) return;
+      
+      final authProvider = context.read<AuthProvider>();
+      
+      // 초기화 대기 (최대 10초)
+      int waitCount = 0;
+      while (!authProvider.isInitialized && waitCount < 100) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        waitCount++;
+      }
+      
+      if (!mounted) return;
+      
+      // 인증 상태에 따라 화면 이동
+      if (authProvider.isAuthenticated) {
+        Navigator.of(context).pushReplacementNamed('/home');
+      } else {
+        Navigator.of(context).pushReplacementNamed('/login');
+      }
+    } catch (e) {
+      // 에러 발생 시 로그인 화면으로 이동
+      print('스플래시 에러: $e');
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/login');
+      }
     }
   }
 
@@ -154,83 +166,64 @@ class _SplashScreenState extends State<SplashScreen>
     return Scaffold(
       backgroundColor: MujiTheme.bg,
       body: Center(
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: ScaleTransition(
-            scale: _scaleAnimation,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // 로고
-                Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        MujiTheme.sage.withOpacity(0.8),
-                        MujiTheme.moss.withOpacity(0.6),
-                      ],
-                    ),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      'P',
-                      style: TextStyle(
-                        fontSize: 48,
-                        fontWeight: FontWeight.w300,
+        child: AnimatedBuilder(
+          animation: _animationController,
+          builder: (context, child) {
+            return FadeTransition(
+              opacity: _fadeAnimation,
+              child: ScaleTransition(
+                scale: _scaleAnimation,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // 로고/아이콘
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: MujiTheme.sage,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Icon(
+                        Icons.book_outlined,
+                        size: 40,
                         color: Colors.white,
-                        letterSpacing: -2,
                       ),
                     ),
-                  ),
-                ),
-                
-                const SizedBox(height: 24),
-                
-                // 앱 이름
-                Text(
-                  'Paperly',
-                  style: MujiTheme.mobileH1.copyWith(
-                    fontSize: 32,
-                    fontWeight: FontWeight.w300,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                
-                const SizedBox(height: 8),
-                
-                // 태그라인
-                Text(
-                  '매일 한 장의 지식',
-                  style: MujiTheme.mobileCaption.copyWith(
-                    fontSize: 14,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                
-                const SizedBox(height: 48),
-                
-                // 로딩 인디케이터
-                SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation(
-                      MujiTheme.sage.withOpacity(0.5),
+                    const SizedBox(height: 24),
+                    // 앱 이름
+                    Text(
+                      'Paperly',
+                      style: MujiTheme.mobileH1.copyWith(
+                        color: MujiTheme.textDark,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 8),
+                    // 서브 타이틀
+                    Text(
+                      '지식의 여정을 시작하세요',
+                      style: MujiTheme.mobileBody.copyWith(
+                        color: MujiTheme.textLight,
+                      ),
+                    ),
+                    const SizedBox(height: 40),
+                    // 로딩 인디케이터
+                    const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(MujiTheme.sage),
+                        strokeWidth: 2,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );
   }
 }
-
