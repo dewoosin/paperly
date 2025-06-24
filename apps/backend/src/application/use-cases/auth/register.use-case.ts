@@ -1,23 +1,27 @@
-// apps/backend/src/application/use-cases/auth/register.use-case.ts
+// /Users/workspace/paperly/apps/backend/src/application/use-cases/auth/register.use-case.ts
 
 import { inject, injectable } from 'tsyringe';
 import { z } from 'zod';
-import { UseCase } from '../../../shared/application/use-case';
-import { IUserRepository } from '../../../domain/repositories/user.repository';
-import { IEmailService } from '../../../domain/services/email.service';
-import { ITokenService } from '../../../domain/services/token.service';
+import { IUserRepository } from '../../../infrastructure/repositories/user.repository';
+import { EmailService } from '../../../infrastructure/email/email.service';
+import { JwtService } from '../../../infrastructure/auth/jwt.service';
+import { AuthRepository } from '../../../infrastructure/repositories/auth.repository';
 import { User } from '../../../domain/entities/user.entity';
-import { Email, Password, BirthDate, Gender } from '../../../domain/value-objects/auth.value-objects';
-import { UserId } from '../../../domain/value-objects/user-id.value-object';
-import { AppError, ErrorCode } from '../../../shared/errors/app-error';
-import { logger } from '../../../infrastructure/logging/logger';
+import { Email } from '../../../domain/value-objects/email.vo';
+import { Password } from '../../../domain/value-objects/password.vo';
+import { UserId } from '../../../domain/value-objects/user-id.vo';
+import { Gender } from '../../../domain/auth/auth.types';
+import { ConflictError, BadRequestError } from '../../../shared/errors';
+import { Logger } from '../../../infrastructure/logging/Logger';
 
-// 회원가입 입력 스키마
+/**
+ * 회원가입 입력 스키마
+ */
 const RegisterInputSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
-  name: z.string().min(1).max(50),
-  birthDate: z.string().datetime(),
+  email: z.string().email('올바른 이메일 형식이 아닙니다'),
+  password: z.string().min(8, '비밀번호는 최소 8자 이상이어야 합니다'),
+  name: z.string().min(2, '이름은 최소 2자 이상이어야 합니다').max(50),
+  birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '생년월일 형식은 YYYY-MM-DD여야 합니다'),
   gender: z.enum(['male', 'female', 'other', 'prefer_not_to_say']).optional()
 });
 
@@ -28,6 +32,7 @@ export interface RegisterOutput {
     id: string;
     email: string;
     name: string;
+    emailVerified: boolean;
   };
   tokens: {
     accessToken: string;
@@ -42,95 +47,122 @@ export interface RegisterOutput {
  * 1. 입력 검증
  * 2. 이메일 중복 확인
  * 3. 사용자 생성
- * 4. 인증 이메일 발송
- * 5. 토큰 발급
+ * 4. 토큰 발급
+ * 5. 인증 이메일 발송
  */
 @injectable()
-export class RegisterUseCase implements UseCase<RegisterInput, RegisterOutput> {
+export class RegisterUseCase {
+  private readonly logger = new Logger('RegisterUseCase');
+
   constructor(
     @inject('UserRepository') private userRepository: IUserRepository,
-    @inject('EmailService') private emailService: IEmailService,
-    @inject('TokenService') private tokenService: ITokenService
+    @inject('EmailService') private emailService: EmailService,
+    @inject('TokenService') private tokenService: typeof JwtService
   ) {}
 
   async execute(input: RegisterInput): Promise<RegisterOutput> {
     // 1. 입력 검증
     const validatedInput = RegisterInputSchema.parse(input);
     
-    logger.info('회원가입 시도', { email: validatedInput.email });
+    this.logger.info('회원가입 시도', { email: validatedInput.email });
 
     try {
       // 2. Value Objects 생성
       const email = Email.create(validatedInput.email);
-      const password = Password.create(validatedInput.password);
-      const birthDate = BirthDate.create(validatedInput.birthDate);
-      const gender = Gender.createOptional(validatedInput.gender);
+      const password = await Password.create(validatedInput.password);
+      const birthDate = new Date(validatedInput.birthDate);
+      
+      // 나이 검증 (14세 이상)
+      const age = this.calculateAge(birthDate);
+      if (age < 14) {
+        throw new BadRequestError('14세 이상만 가입할 수 있습니다');
+      }
 
       // 3. 이메일 중복 확인
       const existingUser = await this.userRepository.findByEmail(email);
       if (existingUser) {
-        throw new AppError(
-          ErrorCode.CONFLICT,
-          '이미 사용 중인 이메일입니다'
-        );
+        throw new ConflictError('이미 사용 중인 이메일입니다');
       }
 
-      // 4. 비밀번호 해싱
-      const hashedPassword = await password.hash();
-
-      // 5. 사용자 생성
+      // 4. 사용자 생성
       const user = User.create({
         email,
-        password: Password.fromHash(hashedPassword),
+        password,
         name: validatedInput.name,
         birthDate,
-        gender
+        gender: validatedInput.gender as Gender
       });
 
-      // 6. DB에 저장
+      // 5. DB에 저장
       await this.userRepository.save(user);
 
-      // 7. 이메일 인증 토큰 생성 및 발송
+      // 6. JWT 토큰 생성
+      const tokens = this.tokenService.generateTokenPair(
+        user.id.getValue(),
+        user.email.getValue()
+      );
+
+      // 7. Refresh Token 저장
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7일
+      await AuthRepository.saveRefreshToken(
+        user.id.getValue(),
+        tokens.refreshToken,
+        expiresAt
+      );
+
+      // 8. 이메일 인증 메일 발송
       let emailVerificationSent = false;
       try {
-        const verificationToken = await this.tokenService.generateEmailVerificationToken(user.id);
-        await this.emailService.sendVerificationEmail(email, verificationToken, user.name);
-        emailVerificationSent = true;
+        const verificationToken = await AuthRepository.createEmailVerificationToken(
+          user.id.getValue()
+        );
         
-        logger.info('인증 이메일 발송 완료', { userId: user.id.value });
+        await this.emailService.sendVerificationEmail(
+          user.email.getValue(),
+          user.name,
+          verificationToken.token
+        );
+        
+        emailVerificationSent = true;
+        this.logger.info('인증 이메일 발송 성공', { userId: user.id.getValue() });
       } catch (error) {
-        // 이메일 발송 실패해도 회원가입은 성공으로 처리
-        logger.error('인증 이메일 발송 실패', { userId: user.id.value, error });
+        this.logger.error('인증 이메일 발송 실패', error);
+        // 이메일 발송 실패해도 회원가입은 성공 처리
       }
 
-      // 8. Access & Refresh 토큰 생성
-      const tokens = await this.tokenService.generateAuthTokens(user);
-
-      logger.info('회원가입 완료', { userId: user.id.value });
+      this.logger.info('회원가입 완료', { 
+        userId: user.id.getValue(),
+        emailVerificationSent 
+      });
 
       return {
         user: {
-          id: user.id.value,
-          email: user.email.value,
-          name: user.name
+          id: user.id.getValue(),
+          email: user.email.getValue(),
+          name: user.name,
+          emailVerified: user.emailVerified
         },
-        tokens: {
-          accessToken: tokens.accessToken,
-          refreshToken: tokens.refreshToken
-        },
+        tokens,
         emailVerificationSent
       };
-
     } catch (error) {
-      if (error instanceof AppError) {
-        throw error;
-      }
-      
-      logger.error('회원가입 실패', { error });
-      throw new AppError(
-        ErrorCode.INTERNAL_ERROR,
-        '회원가입 처리 중 오류가 발생했습니다'
-      );
+      this.logger.error('회원가입 실패', error);
+      throw error;
     }
+  }
+
+  /**
+   * 나이 계산
+   */
+  private calculateAge(birthDate: Date): number {
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    
+    return age;
   }
 }

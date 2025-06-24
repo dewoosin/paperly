@@ -1,189 +1,192 @@
+// /Users/workspace/paperly/apps/backend/src/shared/errors/BaseError.ts
+
 /**
- * BaseError.ts
+ * 에러 코드 enum
  * 
- * 애플리케이션 전체에서 사용되는 기본 에러 클래스
- * 모든 커스텀 에러는 이 클래스를 상속받아 구현
+ * 애플리케이션 전체에서 사용되는 에러 코드를 정의합니다.
  */
-
 export enum ErrorCode {
-  // 인증 관련 (1000번대)
-  UNAUTHORIZED = 'AUTH_001',
-  INVALID_CREDENTIALS = 'AUTH_002',
-  TOKEN_EXPIRED = 'AUTH_003',
-  TOKEN_INVALID = 'AUTH_004',
+  // 인증 관련
+  UNAUTHORIZED = 'UNAUTHORIZED',
+  AUTHENTICATION_ERROR = 'AUTHENTICATION_ERROR',
+  TOKEN_EXPIRED = 'TOKEN_EXPIRED',
+  INVALID_TOKEN = 'INVALID_TOKEN',
   
-  // 유효성 검사 (2000번대)
-  VALIDATION_ERROR = 'VAL_001',
-  INVALID_INPUT = 'VAL_002',
-  MISSING_REQUIRED_FIELD = 'VAL_003',
+  // 권한 관련
+  FORBIDDEN = 'FORBIDDEN',
+  INSUFFICIENT_PERMISSIONS = 'INSUFFICIENT_PERMISSIONS',
   
-  // 비즈니스 로직 (3000번대)
-  BUSINESS_RULE_VIOLATION = 'BIZ_001',
-  RESOURCE_NOT_FOUND = 'BIZ_002',
-  DUPLICATE_RESOURCE = 'BIZ_003',
-  OPERATION_NOT_ALLOWED = 'BIZ_004',
+  // 요청 관련
+  BAD_REQUEST = 'BAD_REQUEST',
+  VALIDATION_ERROR = 'VALIDATION_ERROR',
+  MISSING_PARAMETER = 'MISSING_PARAMETER',
+  INVALID_PARAMETER = 'INVALID_PARAMETER',
   
-  // 외부 서비스 (4000번대)
-  EXTERNAL_SERVICE_ERROR = 'EXT_001',
-  DATABASE_ERROR = 'EXT_002',
-  OPENAI_API_ERROR = 'EXT_003',
-  STORAGE_ERROR = 'EXT_004',
+  // 리소스 관련
+  NOT_FOUND = 'NOT_FOUND',
+  CONFLICT = 'CONFLICT',
+  ALREADY_EXISTS = 'ALREADY_EXISTS',
   
-  // 시스템 (5000번대)
-  INTERNAL_SERVER_ERROR = 'SYS_001',
-  SERVICE_UNAVAILABLE = 'SYS_002',
+  // 비즈니스 로직
+  UNPROCESSABLE_ENTITY = 'UNPROCESSABLE_ENTITY',
+  BUSINESS_RULE_VIOLATION = 'BUSINESS_RULE_VIOLATION',
   
-  // 사용자 관련 (6000번대)
-  USER_NOT_FOUND = 'USER_001',
-  USER_ALREADY_EXISTS = 'USER_002',
-  INVALID_USER_STATUS = 'USER_003',
+  // 외부 서비스
+  EXTERNAL_SERVICE_ERROR = 'EXTERNAL_SERVICE_ERROR',
+  TIMEOUT_ERROR = 'TIMEOUT_ERROR',
   
-  // 기사 관련 (7000번대)
-  ARTICLE_NOT_FOUND = 'ART_001',
-  ARTICLE_ACCESS_DENIED = 'ART_002',
-  INVALID_ARTICLE_STATUS = 'ART_003',
+  // 시스템
+  INTERNAL_ERROR = 'INTERNAL_ERROR',
+  DATABASE_ERROR = 'DATABASE_ERROR',
+  SERVICE_UNAVAILABLE = 'SERVICE_UNAVAILABLE',
+  
+  // Rate Limiting
+  TOO_MANY_REQUESTS = 'TOO_MANY_REQUESTS',
+  RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED'
 }
-
-/**
- * HTTP 상태 코드 매핑
- */
-const ErrorStatusMap: Record<ErrorCode, number> = {
-  // 401 Unauthorized
-  [ErrorCode.UNAUTHORIZED]: 401,
-  [ErrorCode.INVALID_CREDENTIALS]: 401,
-  [ErrorCode.TOKEN_EXPIRED]: 401,
-  [ErrorCode.TOKEN_INVALID]: 401,
-  
-  // 400 Bad Request
-  [ErrorCode.VALIDATION_ERROR]: 400,
-  [ErrorCode.INVALID_INPUT]: 400,
-  [ErrorCode.MISSING_REQUIRED_FIELD]: 400,
-  [ErrorCode.BUSINESS_RULE_VIOLATION]: 400,
-  
-  // 404 Not Found
-  [ErrorCode.RESOURCE_NOT_FOUND]: 404,
-  [ErrorCode.USER_NOT_FOUND]: 404,
-  [ErrorCode.ARTICLE_NOT_FOUND]: 404,
-  
-  // 409 Conflict
-  [ErrorCode.DUPLICATE_RESOURCE]: 409,
-  [ErrorCode.USER_ALREADY_EXISTS]: 409,
-  
-  // 403 Forbidden
-  [ErrorCode.OPERATION_NOT_ALLOWED]: 403,
-  [ErrorCode.ARTICLE_ACCESS_DENIED]: 403,
-  
-  // 503 Service Unavailable
-  [ErrorCode.EXTERNAL_SERVICE_ERROR]: 503,
-  [ErrorCode.SERVICE_UNAVAILABLE]: 503,
-  
-  // 500 Internal Server Error
-  [ErrorCode.INTERNAL_SERVER_ERROR]: 500,
-  [ErrorCode.DATABASE_ERROR]: 500,
-  [ErrorCode.OPENAI_API_ERROR]: 500,
-  [ErrorCode.STORAGE_ERROR]: 500,
-  [ErrorCode.INVALID_USER_STATUS]: 500,
-  [ErrorCode.INVALID_ARTICLE_STATUS]: 500,
-};
 
 /**
  * 기본 에러 클래스
  * 
- * @example
- * throw new BaseError(
- *   'User not found',
- *   ErrorCode.USER_NOT_FOUND,
- *   { userId: 123 }
- * );
+ * 모든 커스텀 에러의 부모 클래스입니다.
+ * Error 클래스를 확장하여 추가적인 정보를 포함합니다.
  */
-export class BaseError extends Error {
-  public readonly code: ErrorCode;
+export abstract class BaseError extends Error {
+  public readonly code: ErrorCode | string;
   public readonly statusCode: number;
-  public readonly isOperational: boolean;
   public readonly timestamp: Date;
   public readonly details?: any;
+  public readonly isOperational: boolean;
 
+  /**
+   * BaseError 생성자
+   * 
+   * @param message - 에러 메시지
+   * @param code - 에러 코드
+   * @param statusCode - HTTP 상태 코드
+   * @param details - 추가 상세 정보
+   * @param isOperational - 운영상 에러 여부 (예상된 에러인지)
+   */
   constructor(
     message: string,
-    code: ErrorCode,
+    code: ErrorCode | string = ErrorCode.INTERNAL_ERROR,
+    statusCode: number = 500,
     details?: any,
     isOperational: boolean = true
   ) {
     super(message);
     
-    // Error 클래스를 상속받을 때 필요한 설정
-    Object.setPrototypeOf(this, BaseError.prototype);
+    // Error 클래스를 상속할 때 필요한 처리
+    Object.setPrototypeOf(this, new.target.prototype);
+    Error.captureStackTrace(this, this.constructor);
     
     this.name = this.constructor.name;
     this.code = code;
-    this.statusCode = ErrorStatusMap[code] || 500;
-    this.isOperational = isOperational;
+    this.statusCode = statusCode;
     this.timestamp = new Date();
     this.details = details;
-    
-    // 스택 트레이스 캡처 (프로덕션에서는 제거 가능)
-    Error.captureStackTrace(this, this.constructor);
+    this.isOperational = isOperational;
   }
 
   /**
-   * 에러 객체를 JSON으로 변환
+   * JSON 직렬화
+   * 
+   * 에러 객체를 JSON으로 변환할 때 사용됩니다.
    */
-  public toJSON() {
+  toJSON() {
     return {
       name: this.name,
-      message: this.message,
       code: this.code,
+      message: this.message,
       statusCode: this.statusCode,
       timestamp: this.timestamp,
       details: this.details,
-      // 개발 환경에서만 스택 포함
-      ...(process.env.NODE_ENV === 'development' && { stack: this.stack }),
+      stack: this.stack // 개발 환경에서만 포함하도록 수정 가능
     };
+  }
+
+  /**
+   * 클라이언트에게 전송할 응답 생성
+   * 
+   * 민감한 정보를 제외한 에러 정보를 반환합니다.
+   */
+  toClientResponse() {
+    return {
+      code: this.code,
+      message: this.message,
+      details: this.details,
+      timestamp: this.timestamp
+    };
+  }
+
+  /**
+   * 로깅용 정보 생성
+   * 
+   * 로그에 기록할 상세 정보를 반환합니다.
+   */
+  toLogContext() {
+    return {
+      name: this.name,
+      code: this.code,
+      message: this.message,
+      statusCode: this.statusCode,
+      details: this.details,
+      stack: this.stack,
+      timestamp: this.timestamp,
+      isOperational: this.isOperational
+    };
+  }
+
+  /**
+   * 에러가 재시도 가능한지 확인
+   * 
+   * 일시적인 에러인 경우 재시도 가능합니다.
+   */
+  isRetryable(): boolean {
+    const retryableCodes = [
+      ErrorCode.SERVICE_UNAVAILABLE,
+      ErrorCode.TIMEOUT_ERROR,
+      ErrorCode.TOO_MANY_REQUESTS
+    ];
+    
+    return retryableCodes.includes(this.code as ErrorCode);
+  }
+
+  /**
+   * 에러 심각도 레벨
+   * 
+   * 로깅 및 알림에 사용됩니다.
+   */
+  getSeverity(): 'low' | 'medium' | 'high' | 'critical' {
+    // 운영상 에러가 아닌 경우 높은 심각도
+    if (!this.isOperational) {
+      return 'critical';
+    }
+
+    // 상태 코드별 심각도
+    if (this.statusCode >= 500) {
+      return 'high';
+    } else if (this.statusCode >= 400) {
+      return 'medium';
+    }
+    
+    return 'low';
   }
 }
 
 /**
- * 특정 도메인 에러들
+ * 에러가 BaseError 인스턴스인지 확인
  */
-
-// 인증 에러
-export class AuthenticationError extends BaseError {
-  constructor(message: string = 'Authentication failed', details?: any) {
-    super(message, ErrorCode.UNAUTHORIZED, details);
-  }
+export function isBaseError(error: any): error is BaseError {
+  return error instanceof BaseError;
 }
 
-// 유효성 검사 에러
-export class ValidationError extends BaseError {
-  constructor(message: string, details?: any) {
-    super(message, ErrorCode.VALIDATION_ERROR, details);
+/**
+ * 에러가 운영상 에러인지 확인
+ */
+export function isOperationalError(error: any): boolean {
+  if (isBaseError(error)) {
+    return error.isOperational;
   }
-}
-
-// 리소스 찾을 수 없음 에러
-export class NotFoundError extends BaseError {
-  constructor(resource: string, details?: any) {
-    super(`${resource} not found`, ErrorCode.RESOURCE_NOT_FOUND, details);
-  }
-}
-
-// 중복 리소스 에러
-export class DuplicateError extends BaseError {
-  constructor(resource: string, details?: any) {
-    super(`${resource} already exists`, ErrorCode.DUPLICATE_RESOURCE, details);
-  }
-}
-
-// 비즈니스 규칙 위반 에러
-export class BusinessRuleError extends BaseError {
-  constructor(message: string, details?: any) {
-    super(message, ErrorCode.BUSINESS_RULE_VIOLATION, details);
-  }
-}
-
-// 외부 서비스 에러
-export class ExternalServiceError extends BaseError {
-  constructor(service: string, message: string, details?: any) {
-    super(`External service error (${service}): ${message}`, ErrorCode.EXTERNAL_SERVICE_ERROR, details);
-  }
+  return false;
 }

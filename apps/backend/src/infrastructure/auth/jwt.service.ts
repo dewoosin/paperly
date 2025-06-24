@@ -1,4 +1,4 @@
-// apps/backend/src/infrastructure/auth/jwt.service.ts
+// /Users/workspace/paperly/apps/backend/src/infrastructure/auth/jwt.service.ts
 
 import jwt from 'jsonwebtoken';
 import { jwtConfig, JwtPayload, DecodedToken } from './jwt.config';
@@ -11,6 +11,8 @@ import { logger } from '../logging/logger';
  * JWT 토큰의 생성, 검증, 갱신을 담당합니다.
  */
 export class JwtService {
+  private static readonly logger = new Logger('JwtService');
+
   /**
    * Access Token 생성
    * 
@@ -131,48 +133,82 @@ export class JwtService {
   }
 
   /**
-   * 토큰에서 Bearer 접두사 제거
+   * 토큰에서 페이로드 추출 (검증 없이)
    * 
-   * @param authHeader - Authorization 헤더 값
-   * @returns 토큰 문자열
+   * @param token - 토큰
+   * @returns 페이로드 또는 null
    */
-  static extractTokenFromHeader(authHeader?: string): string | null {
-    if (!authHeader) return null;
-    
-    const parts = authHeader.split(' ');
-    if (parts.length !== 2 || parts[0] !== 'Bearer') {
+  static decode(token: string): JwtPayload | null {
+    try {
+      return jwt.decode(token) as JwtPayload;
+    } catch {
       return null;
     }
-    
-    return parts[1];
   }
 
   /**
-   * 토큰 만료까지 남은 시간 계산 (초 단위)
+   * 토큰 만료 시간 확인
    * 
-   * @param token - 토큰
-   * @returns 남은 시간 (초)
+   * @param token - 확인할 토큰
+   * @returns 만료 시간 (Unix timestamp) 또는 null
    */
-  static getTokenRemainingTime(token: DecodedToken): number {
-    const now = Math.floor(Date.now() / 1000);
-    return Math.max(0, token.exp - now);
+  static getExpirationTime(token: string): number | null {
+    const decoded = this.decode(token);
+    return decoded?.exp || null;
   }
 
   /**
-   * 토큰 정보 로깅 (디버깅용)
+   * 토큰이 만료되었는지 확인
    * 
-   * @param token - 토큰
-   * @param label - 로그 라벨
+   * @param token - 확인할 토큰
+   * @returns 만료 여부
    */
-  static logTokenInfo(token: DecodedToken, label: string = 'Token'): void {
-    const remainingTime = this.getTokenRemainingTime(token);
-    const remainingMinutes = Math.floor(remainingTime / 60);
+  static isExpired(token: string): boolean {
+    const exp = this.getExpirationTime(token);
+    if (!exp) return true;
     
-    logger.debug(`${label} Info:`, {
-      userId: token.userId,
-      type: token.type,
-      remainingTime: `${remainingMinutes}m ${remainingTime % 60}s`,
-      expiresAt: new Date(token.exp * 1000).toISOString(),
-    });
+    return Date.now() >= exp * 1000;
+  }
+
+  /**
+   * 토큰 남은 유효 시간 계산 (초)
+   * 
+   * @param token - 확인할 토큰
+   * @returns 남은 시간 (초) 또는 0
+   */
+  static getTimeToExpiry(token: string): number {
+    const exp = this.getExpirationTime(token);
+    if (!exp) return 0;
+    
+    const remaining = (exp * 1000) - Date.now();
+    return Math.max(0, Math.floor(remaining / 1000));
+  }
+
+  /**
+   * 토큰 서명 검증 (페이로드 검증 없이)
+   * 
+   * @param token - 검증할 토큰
+   * @param type - 토큰 타입
+   * @returns 서명 유효 여부
+   */
+  static isValidSignature(token: string, type: 'access' | 'refresh'): boolean {
+    try {
+      const secret = type === 'access' 
+        ? jwtConfig.accessTokenSecret 
+        : jwtConfig.refreshTokenSecret;
+      
+      jwt.verify(token, secret, {
+        ignoreExpiration: true,
+        issuer: jwtConfig.issuer,
+        audience: jwtConfig.audience,
+      });
+      
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
+
+// Logger import
+import { Logger } from '../logging/Logger';

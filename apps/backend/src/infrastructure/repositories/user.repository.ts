@@ -1,4 +1,4 @@
-// apps/backend/src/infrastructure/repositories/user.repository.ts
+// /Users/workspace/paperly/apps/backend/src/infrastructure/repositories/user.repository.ts
 
 import { Pool } from 'pg';
 import { db } from '../config/database.config';
@@ -7,7 +7,7 @@ import { Email } from '../../domain/value-objects/email.vo';
 import { Password } from '../../domain/value-objects/password.vo';
 import { UserId } from '../../domain/value-objects/user-id.vo';
 import { DatabaseError, NotFoundError } from '../../shared/errors';
-import { logger } from '../logging/logger';
+import { Logger } from '../logging/Logger';
 import { Gender } from '../../domain/auth/auth.types';
 
 /**
@@ -27,12 +27,16 @@ export interface IUserRepository {
  * PostgreSQL 기반 사용자 레포지토리 구현
  */
 export class UserRepository implements IUserRepository {
+  private readonly logger = new Logger('UserRepository');
+
   /**
-   * 사용자 저장
+   * 사용자 저장 (생성 또는 업데이트)
    */
   async save(user: User): Promise<void> {
     const client = await db.getClient();
     try {
+      const data = user.toPersistence();
+      
       await client.query(
         `INSERT INTO users (id, email, password_hash, name, email_verified, birth_date, gender, created_at, updated_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -45,25 +49,22 @@ export class UserRepository implements IUserRepository {
            gender = EXCLUDED.gender,
            updated_at = EXCLUDED.updated_at`,
         [
-          user.id.value,
-          user.email.value,
-          user.password.hashedValue,
-          user.name,
-          user.emailVerified,
-          user.birthDate,
-          user.gender,
-          user.createdAt,
-          user.updatedAt,
+          data.id,
+          data.email,
+          data.passwordHash,
+          data.name,
+          data.emailVerified,
+          data.birthDate,
+          data.gender,
+          data.createdAt,
+          data.updatedAt
         ]
       );
-      
-      logger.info('User saved', { userId: user.id.value });
+
+      this.logger.debug('사용자 저장 완료', { userId: data.id });
     } catch (error) {
-      logger.error('Failed to save user:', error);
-      if (error.code === '23505') { // Unique violation
-        throw new DatabaseError('User with this email already exists');
-      }
-      throw new DatabaseError('Failed to save user');
+      this.logger.error('사용자 저장 실패', error);
+      throw new DatabaseError('사용자 저장에 실패했습니다');
     } finally {
       client.release();
     }
@@ -76,18 +77,31 @@ export class UserRepository implements IUserRepository {
     const client = await db.getClient();
     try {
       const result = await client.query(
-        'SELECT * FROM users WHERE id = $1',
-        [id.value]
+        `SELECT id, email, password_hash, name, email_verified, birth_date, gender, created_at, updated_at
+         FROM users
+         WHERE id = $1`,
+        [id.getValue()]
       );
 
       if (result.rows.length === 0) {
         return null;
       }
 
-      return this.mapToUser(result.rows[0]);
+      const row = result.rows[0];
+      return User.fromPersistence({
+        id: row.id,
+        email: row.email,
+        passwordHash: row.password_hash,
+        name: row.name,
+        emailVerified: row.email_verified,
+        birthDate: row.birth_date,
+        gender: row.gender as Gender,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      });
     } catch (error) {
-      logger.error('Failed to find user by id:', error);
-      throw new DatabaseError('Failed to find user');
+      this.logger.error('사용자 조회 실패', error);
+      throw new DatabaseError('사용자 조회에 실패했습니다');
     } finally {
       client.release();
     }
@@ -100,18 +114,31 @@ export class UserRepository implements IUserRepository {
     const client = await db.getClient();
     try {
       const result = await client.query(
-        'SELECT * FROM users WHERE email = $1',
-        [email.value]
+        `SELECT id, email, password_hash, name, email_verified, birth_date, gender, created_at, updated_at
+         FROM users
+         WHERE email = $1`,
+        [email.getValue()]
       );
 
       if (result.rows.length === 0) {
         return null;
       }
 
-      return this.mapToUser(result.rows[0]);
+      const row = result.rows[0];
+      return User.fromPersistence({
+        id: row.id,
+        email: row.email,
+        passwordHash: row.password_hash,
+        name: row.name,
+        emailVerified: row.email_verified,
+        birthDate: row.birth_date,
+        gender: row.gender as Gender,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      });
     } catch (error) {
-      logger.error('Failed to find user by email:', error);
-      throw new DatabaseError('Failed to find user');
+      this.logger.error('이메일로 사용자 조회 실패', error);
+      throw new DatabaseError('사용자 조회에 실패했습니다');
     } finally {
       client.release();
     }
@@ -125,13 +152,13 @@ export class UserRepository implements IUserRepository {
     try {
       const result = await client.query(
         'SELECT EXISTS(SELECT 1 FROM users WHERE email = $1) as exists',
-        [email.value]
+        [email.getValue()]
       );
 
       return result.rows[0].exists;
     } catch (error) {
-      logger.error('Failed to check email existence:', error);
-      throw new DatabaseError('Failed to check email existence');
+      this.logger.error('이메일 존재 여부 확인 실패', error);
+      throw new DatabaseError('이메일 확인에 실패했습니다');
     } finally {
       client.release();
     }
@@ -144,23 +171,23 @@ export class UserRepository implements IUserRepository {
     const client = await db.getClient();
     try {
       const result = await client.query(
-        `UPDATE users 
-         SET email_verified = $1, updated_at = CURRENT_TIMESTAMP 
+        `UPDATE users
+         SET email_verified = $1, updated_at = NOW()
          WHERE id = $2`,
-        [verified, id.value]
+        [verified, id.getValue()]
       );
 
       if (result.rowCount === 0) {
-        throw new NotFoundError('User not found');
+        throw new NotFoundError('사용자를 찾을 수 없습니다');
       }
 
-      logger.info('User email verification updated', { 
-        userId: id.value, 
+      this.logger.debug('이메일 인증 상태 업데이트', { 
+        userId: id.getValue(), 
         verified 
       });
     } catch (error) {
-      logger.error('Failed to update email verification:', error);
-      throw new DatabaseError('Failed to update email verification');
+      this.logger.error('이메일 인증 상태 업데이트 실패', error);
+      throw new DatabaseError('이메일 인증 상태 업데이트에 실패했습니다');
     } finally {
       client.release();
     }
@@ -173,20 +200,20 @@ export class UserRepository implements IUserRepository {
     const client = await db.getClient();
     try {
       const result = await client.query(
-        `UPDATE users 
-         SET password_hash = $1, updated_at = CURRENT_TIMESTAMP 
+        `UPDATE users
+         SET password_hash = $1, updated_at = NOW()
          WHERE id = $2`,
-        [password.hashedValue, id.value]
+        [password.getHashedValue(), id.getValue()]
       );
 
       if (result.rowCount === 0) {
-        throw new NotFoundError('User not found');
+        throw new NotFoundError('사용자를 찾을 수 없습니다');
       }
 
-      logger.info('User password updated', { userId: id.value });
+      this.logger.debug('비밀번호 업데이트 완료', { userId: id.getValue() });
     } catch (error) {
-      logger.error('Failed to update password:', error);
-      throw new DatabaseError('Failed to update password');
+      this.logger.error('비밀번호 업데이트 실패', error);
+      throw new DatabaseError('비밀번호 업데이트에 실패했습니다');
     } finally {
       client.release();
     }
@@ -198,38 +225,88 @@ export class UserRepository implements IUserRepository {
   async delete(id: UserId): Promise<void> {
     const client = await db.getClient();
     try {
+      await client.query('BEGIN');
+
+      // 관련 데이터 삭제 (cascade 설정이 없는 경우)
+      await client.query(
+        'DELETE FROM refresh_tokens WHERE user_id = $1',
+        [id.getValue()]
+      );
+      
+      await client.query(
+        'DELETE FROM email_verification_tokens WHERE user_id = $1',
+        [id.getValue()]
+      );
+
+      // 사용자 삭제
       const result = await client.query(
         'DELETE FROM users WHERE id = $1',
-        [id.value]
+        [id.getValue()]
       );
 
       if (result.rowCount === 0) {
-        throw new NotFoundError('User not found');
+        await client.query('ROLLBACK');
+        throw new NotFoundError('사용자를 찾을 수 없습니다');
       }
 
-      logger.info('User deleted', { userId: id.value });
+      await client.query('COMMIT');
+      this.logger.info('사용자 삭제 완료', { userId: id.getValue() });
     } catch (error) {
-      logger.error('Failed to delete user:', error);
-      throw new DatabaseError('Failed to delete user');
+      await client.query('ROLLBACK');
+      this.logger.error('사용자 삭제 실패', error);
+      throw new DatabaseError('사용자 삭제에 실패했습니다');
     } finally {
       client.release();
     }
   }
 
   /**
-   * DB 결과를 User 엔티티로 매핑
+   * 사용자 수 조회
    */
-  private mapToUser(row: any): User {
-    return new User(
-      new UserId(row.id),
-      new Email(row.email),
-      Password.fromHash(row.password_hash),
-      row.name,
-      row.email_verified,
-      row.birth_date,
-      row.gender as Gender | undefined,
-      row.created_at,
-      row.updated_at
-    );
+  async count(): Promise<number> {
+    const client = await db.getClient();
+    try {
+      const result = await client.query('SELECT COUNT(*) as count FROM users');
+      return parseInt(result.rows[0].count, 10);
+    } catch (error) {
+      this.logger.error('사용자 수 조회 실패', error);
+      throw new DatabaseError('사용자 수 조회에 실패했습니다');
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * 이메일 인증되지 않은 사용자 조회
+   */
+  async findUnverifiedUsers(days: number = 7): Promise<User[]> {
+    const client = await db.getClient();
+    try {
+      const result = await client.query(
+        `SELECT id, email, password_hash, name, email_verified, birth_date, gender, created_at, updated_at
+         FROM users
+         WHERE email_verified = false
+         AND created_at < NOW() - INTERVAL '${days} days'
+         ORDER BY created_at DESC`,
+        []
+      );
+
+      return result.rows.map(row => User.fromPersistence({
+        id: row.id,
+        email: row.email,
+        passwordHash: row.password_hash,
+        name: row.name,
+        emailVerified: row.email_verified,
+        birthDate: row.birth_date,
+        gender: row.gender as Gender,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      }));
+    } catch (error) {
+      this.logger.error('미인증 사용자 조회 실패', error);
+      throw new DatabaseError('미인증 사용자 조회에 실패했습니다');
+    } finally {
+      client.release();
+    }
   }
 }

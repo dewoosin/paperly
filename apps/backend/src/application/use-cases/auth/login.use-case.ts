@@ -1,21 +1,26 @@
-// apps/backend/src/application/use-cases/auth/login.use-case.ts
+// /Users/workspace/paperly/apps/backend/src/application/use-cases/auth/login.use-case.ts
 
 import { inject, injectable } from 'tsyringe';
 import { z } from 'zod';
-import { UseCase } from '../../../shared/application/use-case';
-import { IUserRepository } from '../../../domain/repositories/user.repository';
-import { ITokenService } from '../../../domain/services/token.service';
-import { ILoginAttemptRepository } from '../../../domain/repositories/login-attempt.repository';
-import { Email, Password, DeviceInfo } from '../../../domain/value-objects/auth.value-objects';
-import { AppError, ErrorCode } from '../../../shared/errors/app-error';
-import { logger } from '../../../infrastructure/logging/logger';
+import { IUserRepository } from '../../../infrastructure/repositories/user.repository';
+import { JwtService } from '../../../infrastructure/auth/jwt.service';
+import { AuthRepository } from '../../../infrastructure/repositories/auth.repository';
+import { Email } from '../../../domain/value-objects/email.vo';
+import { UnauthorizedError, TooManyRequestsError } from '../../../shared/errors';
+import { Logger } from '../../../infrastructure/logging/Logger';
+import { DeviceInfo } from '../../../domain/auth/auth.types';
 
+/**
+ * 로그인 입력 스키마
+ */
 const LoginInputSchema = z.object({
-  email: z.string().email(),
-  password: z.string(),
-  deviceId: z.string(),
-  userAgent: z.string(),
-  ipAddress: z.string().optional()
+  email: z.string().email('올바른 이메일 형식이 아닙니다'),
+  password: z.string().min(1, '비밀번호를 입력해주세요'),
+  deviceInfo: z.object({
+    deviceId: z.string().optional(),
+    userAgent: z.string().optional(),
+    ipAddress: z.string().optional()
+  }).optional()
 });
 
 export type LoginInput = z.infer<typeof LoginInputSchema>;
@@ -38,136 +43,145 @@ export interface LoginOutput {
  * 
  * 1. 입력 검증
  * 2. 사용자 조회
- * 3. 비밀번호 확인
- * 4. 계정 잠금 확인
- * 5. 토큰 발급
- * 6. 로그인 기록
+ * 3. 비밀번호 검증
+ * 4. 토큰 발급
+ * 5. 로그인 기록
  */
 @injectable()
-export class LoginUseCase implements UseCase<LoginInput, LoginOutput> {
-  private static readonly MAX_LOGIN_ATTEMPTS = 5;
-  private static readonly LOCK_DURATION_MINUTES = 30;
+export class LoginUseCase {
+  private readonly logger = new Logger('LoginUseCase');
+  
+  // 로그인 시도 제한 설정
+  private readonly MAX_LOGIN_ATTEMPTS = 5;
+  private readonly LOCKOUT_DURATION = 15 * 60 * 1000; // 15분
+  private loginAttempts = new Map<string, { count: number; lastAttempt: Date }>();
 
   constructor(
     @inject('UserRepository') private userRepository: IUserRepository,
-    @inject('TokenService') private tokenService: ITokenService,
-    @inject('LoginAttemptRepository') private loginAttemptRepository: ILoginAttemptRepository
+    @inject('TokenService') private tokenService: typeof JwtService
   ) {}
 
   async execute(input: LoginInput): Promise<LoginOutput> {
+    // 1. 입력 검증
     const validatedInput = LoginInputSchema.parse(input);
     
-    logger.info('로그인 시도', { email: validatedInput.email });
+    this.logger.info('로그인 시도', { email: validatedInput.email });
+
+    // 2. 로그인 시도 제한 확인
+    this.checkLoginAttempts(validatedInput.email);
 
     try {
+      // 3. 사용자 조회
       const email = Email.create(validatedInput.email);
-      const deviceInfo = DeviceInfo.create(validatedInput.deviceId, validatedInput.userAgent);
-
-      // 1. 사용자 조회
       const user = await this.userRepository.findByEmail(email);
       
-      // 로그인 시도 기록 (성공/실패 여부와 관계없이)
-      const loginAttempt = {
-        email: email.value,
-        ipAddress: validatedInput.ipAddress,
-        userAgent: validatedInput.userAgent,
-        success: false,
-        failureReason: null as string | null
-      };
-
       if (!user) {
-        // 보안을 위해 구체적인 에러 메시지는 숨김
-        loginAttempt.failureReason = 'user_not_found';
-        await this.loginAttemptRepository.create(loginAttempt);
-        
-        throw new AppError(
-          ErrorCode.UNAUTHORIZED,
-          '이메일 또는 비밀번호가 올바르지 않습니다'
-        );
+        this.recordFailedAttempt(validatedInput.email);
+        throw new UnauthorizedError('이메일 또는 비밀번호가 올바르지 않습니다');
       }
 
-      // 2. 계정 잠금 확인
-      if (user.isLocked()) {
-        loginAttempt.failureReason = 'account_locked';
-        await this.loginAttemptRepository.create(loginAttempt);
-        
-        const remainingMinutes = user.getRemainingLockMinutes();
-        throw new AppError(
-          ErrorCode.FORBIDDEN,
-          `계정이 잠겨있습니다. ${remainingMinutes}분 후에 다시 시도해주세요`
-        );
-      }
-
-      // 3. 비밀번호 확인
-      const isPasswordValid = await user.password.compare(validatedInput.password);
-      
+      // 4. 비밀번호 검증
+      const isPasswordValid = await user.password.verify(validatedInput.password);
       if (!isPasswordValid) {
-        // 실패 횟수 증가
-        user.recordFailedLoginAttempt();
-        
-        // 계정 잠금 확인
-        if (user.failedLoginAttempts >= LoginUseCase.MAX_LOGIN_ATTEMPTS) {
-          user.lockAccount(LoginUseCase.LOCK_DURATION_MINUTES);
-          await this.userRepository.save(user);
-          
-          loginAttempt.failureReason = 'invalid_password_locked';
-          await this.loginAttemptRepository.create(loginAttempt);
-          
-          throw new AppError(
-            ErrorCode.FORBIDDEN,
-            `로그인 시도 횟수를 초과했습니다. ${LoginUseCase.LOCK_DURATION_MINUTES}분 후에 다시 시도해주세요`
-          );
-        }
-        
-        await this.userRepository.save(user);
-        
-        loginAttempt.failureReason = 'invalid_password';
-        await this.loginAttemptRepository.create(loginAttempt);
-        
-        const remainingAttempts = LoginUseCase.MAX_LOGIN_ATTEMPTS - user.failedLoginAttempts;
-        throw new AppError(
-          ErrorCode.UNAUTHORIZED,
-          `이메일 또는 비밀번호가 올바르지 않습니다. (남은 시도: ${remainingAttempts}회)`
-        );
+        this.recordFailedAttempt(validatedInput.email);
+        throw new UnauthorizedError('이메일 또는 비밀번호가 올바르지 않습니다');
       }
 
-      // 4. 로그인 성공 - 실패 횟수 초기화
-      user.recordSuccessfulLogin();
-      await this.userRepository.save(user);
+      // 5. 로그인 성공 - 시도 기록 초기화
+      this.clearLoginAttempts(validatedInput.email);
 
-      // 5. 토큰 생성
-      const tokens = await this.tokenService.generateAuthTokens(user, deviceInfo);
+      // 6. JWT 토큰 생성
+      const tokens = this.tokenService.generateTokenPair(
+        user.id.getValue(),
+        user.email.getValue()
+      );
 
-      // 6. 로그인 성공 기록
-      loginAttempt.success = true;
-      loginAttempt.failureReason = null;
-      await this.loginAttemptRepository.create(loginAttempt);
+      // 7. Refresh Token 저장
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7일
+      await AuthRepository.saveRefreshToken(
+        user.id.getValue(),
+        tokens.refreshToken,
+        expiresAt,
+        validatedInput.deviceInfo?.deviceId,
+        validatedInput.deviceInfo?.userAgent,
+        validatedInput.deviceInfo?.ipAddress
+      );
 
-      logger.info('로그인 성공', { userId: user.id.value });
+      // 8. 로그인 성공 기록
+      this.logger.info('로그인 성공', { 
+        userId: user.id.getValue(),
+        deviceId: validatedInput.deviceInfo?.deviceId 
+      });
 
       return {
         user: {
-          id: user.id.value,
-          email: user.email.value,
+          id: user.id.getValue(),
+          email: user.email.getValue(),
           name: user.name,
           emailVerified: user.emailVerified
         },
-        tokens: {
-          accessToken: tokens.accessToken,
-          refreshToken: tokens.refreshToken
-        }
+        tokens
       };
-
     } catch (error) {
-      if (error instanceof AppError) {
-        throw error;
-      }
-      
-      logger.error('로그인 실패', { error });
-      throw new AppError(
-        ErrorCode.INTERNAL_ERROR,
-        '로그인 처리 중 오류가 발생했습니다'
+      this.logger.error('로그인 실패', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 로그인 시도 제한 확인
+   */
+  private checkLoginAttempts(email: string): void {
+    const attempts = this.loginAttempts.get(email);
+    
+    if (!attempts) return;
+
+    const timeSinceLastAttempt = Date.now() - attempts.lastAttempt.getTime();
+    
+    // 잠금 시간이 지났으면 초기화
+    if (timeSinceLastAttempt > this.LOCKOUT_DURATION) {
+      this.loginAttempts.delete(email);
+      return;
+    }
+
+    // 최대 시도 횟수 초과
+    if (attempts.count >= this.MAX_LOGIN_ATTEMPTS) {
+      const remainingTime = Math.ceil((this.LOCKOUT_DURATION - timeSinceLastAttempt) / 1000 / 60);
+      throw new TooManyRequestsError(
+        `너무 많은 로그인 시도가 있었습니다. ${remainingTime}분 후에 다시 시도해주세요.`
       );
     }
+  }
+
+  /**
+   * 실패한 로그인 시도 기록
+   */
+  private recordFailedAttempt(email: string): void {
+    const attempts = this.loginAttempts.get(email) || { count: 0, lastAttempt: new Date() };
+    attempts.count++;
+    attempts.lastAttempt = new Date();
+    this.loginAttempts.set(email, attempts);
+
+    this.logger.warn('로그인 실패 시도', { 
+      email, 
+      attemptCount: attempts.count 
+    });
+
+    // 남은 시도 횟수를 에러 메시지에 포함
+    if (attempts.count >= 3) {
+      const remainingAttempts = this.MAX_LOGIN_ATTEMPTS - attempts.count;
+      if (remainingAttempts > 0) {
+        throw new UnauthorizedError(
+          `이메일 또는 비밀번호가 올바르지 않습니다. (남은 시도: ${remainingAttempts}회)`
+        );
+      }
+    }
+  }
+
+  /**
+   * 로그인 시도 기록 초기화
+   */
+  private clearLoginAttempts(email: string): void {
+    this.loginAttempts.delete(email);
   }
 }

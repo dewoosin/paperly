@@ -1,16 +1,19 @@
-// apps/backend/src/application/use-cases/auth/verify-email.use-case.ts
+// /Users/workspace/paperly/apps/backend/src/application/use-cases/auth/verify-email.use-case.ts
 
 import { inject, injectable } from 'tsyringe';
 import { z } from 'zod';
-import { UseCase } from '../../../shared/application/use-case';
-import { IUserRepository } from '../../../domain/repositories/user.repository';
-import { IEmailVerificationRepository } from '../../../domain/repositories/email-verification.repository';
-import { Token } from '../../../domain/value-objects/auth.value-objects';
-import { AppError, ErrorCode } from '../../../shared/errors/app-error';
-import { logger } from '../../../infrastructure/logging/logger';
+import { IUserRepository } from '../../../infrastructure/repositories/user.repository';
+import { AuthRepository } from '../../../infrastructure/repositories/auth.repository';
+import { EmailService } from '../../../infrastructure/email/email.service';
+import { UserId } from '../../../domain/value-objects/user-id.vo';
+import { BadRequestError, NotFoundError } from '../../../shared/errors';
+import { Logger } from '../../../infrastructure/logging/Logger';
 
+/**
+ * 이메일 인증 입력 스키마
+ */
 const VerifyEmailInputSchema = z.object({
-  token: z.string()
+  token: z.string().uuid('유효하지 않은 토큰 형식입니다')
 });
 
 export type VerifyEmailInput = z.infer<typeof VerifyEmailInputSchema>;
@@ -18,86 +21,176 @@ export type VerifyEmailInput = z.infer<typeof VerifyEmailInputSchema>;
 export interface VerifyEmailOutput {
   success: boolean;
   message: string;
+  user?: {
+    id: string;
+    email: string;
+    name: string;
+  };
 }
 
 /**
  * 이메일 인증 유스케이스
+ * 
+ * 1. 토큰 검증
+ * 2. 사용자 이메일 인증 처리
+ * 3. 환영 이메일 발송
  */
 @injectable()
-export class VerifyEmailUseCase implements UseCase<VerifyEmailInput, VerifyEmailOutput> {
+export class VerifyEmailUseCase {
+  private readonly logger = new Logger('VerifyEmailUseCase');
+
   constructor(
     @inject('UserRepository') private userRepository: IUserRepository,
-    @inject('EmailVerificationRepository') private emailVerificationRepository: IEmailVerificationRepository
+    @inject('EmailService') private emailService: EmailService
   ) {}
 
   async execute(input: VerifyEmailInput): Promise<VerifyEmailOutput> {
+    // 1. 입력 검증
     const validatedInput = VerifyEmailInputSchema.parse(input);
     
-    logger.info('이메일 인증 시도');
+    this.logger.info('이메일 인증 시도', { token: validatedInput.token });
 
     try {
-      const token = Token.create(validatedInput.token);
+      // 2. 토큰 조회
+      const verificationToken = await AuthRepository.findEmailVerificationToken(
+        validatedInput.token
+      );
       
-      // 1. 토큰으로 인증 정보 조회
-      const verification = await this.emailVerificationRepository.findByToken(token);
+      if (!verificationToken) {
+        throw new BadRequestError('유효하지 않은 인증 토큰입니다');
+      }
+
+      // 3. 사용자 조회
+      const user = await this.userRepository.findById(
+        UserId.from(verificationToken.userId)
+      );
       
-      if (!verification) {
-        throw new AppError(
-          ErrorCode.NOT_FOUND,
-          '유효하지 않은 인증 토큰입니다'
-        );
-      }
-
-      // 2. 토큰 만료 확인
-      if (verification.isExpired()) {
-        throw new AppError(
-          ErrorCode.BAD_REQUEST,
-          '인증 토큰이 만료되었습니다. 새로운 인증 메일을 요청해주세요'
-        );
-      }
-
-      // 3. 이미 인증된 경우
-      if (verification.isVerified()) {
-        throw new AppError(
-          ErrorCode.BAD_REQUEST,
-          '이미 인증이 완료되었습니다'
-        );
-      }
-
-      // 4. 사용자 조회
-      const user = await this.userRepository.findById(verification.userId);
       if (!user) {
-        throw new AppError(
-          ErrorCode.NOT_FOUND,
-          '사용자를 찾을 수 없습니다'
-        );
+        throw new NotFoundError('사용자를 찾을 수 없습니다');
+      }
+
+      // 4. 이미 인증된 경우
+      if (user.emailVerified) {
+        return {
+          success: true,
+          message: '이미 인증된 이메일입니다',
+          user: {
+            id: user.id.getValue(),
+            email: user.email.getValue(),
+            name: user.name
+          }
+        };
       }
 
       // 5. 이메일 인증 처리
       user.verifyEmail();
       await this.userRepository.save(user);
 
-      // 6. 인증 정보 업데이트
-      verification.markAsVerified();
-      await this.emailVerificationRepository.save(verification);
+      // 6. 사용한 토큰 삭제
+      await AuthRepository.deleteEmailVerificationToken(validatedInput.token);
 
-      logger.info('이메일 인증 완료', { userId: user.id.value });
+      // 7. 환영 이메일 발송
+      try {
+        await this.emailService.sendWelcomeEmail(
+          user.email.getValue(),
+          user.name
+        );
+      } catch (error) {
+        this.logger.error('환영 이메일 발송 실패', error);
+        // 이메일 발송 실패해도 인증은 성공 처리
+      }
+
+      this.logger.info('이메일 인증 완료', { userId: user.id.getValue() });
 
       return {
         success: true,
-        message: '이메일 인증이 완료되었습니다'
+        message: '이메일 인증이 완료되었습니다',
+        user: {
+          id: user.id.getValue(),
+          email: user.email.getValue(),
+          name: user.name
+        }
       };
-
     } catch (error) {
-      if (error instanceof AppError) {
-        throw error;
-      }
-      
-      logger.error('이메일 인증 실패', { error });
-      throw new AppError(
-        ErrorCode.INTERNAL_ERROR,
-        '이메일 인증 처리 중 오류가 발생했습니다'
+      this.logger.error('이메일 인증 실패', error);
+      throw error;
+    }
+  }
+}
+
+/**
+ * 이메일 인증 재전송 입력 스키마
+ */
+const ResendVerificationInputSchema = z.object({
+  userId: z.string().uuid('유효하지 않은 사용자 ID입니다')
+});
+
+export type ResendVerificationInput = z.infer<typeof ResendVerificationInputSchema>;
+
+export interface ResendVerificationOutput {
+  success: boolean;
+  message: string;
+}
+
+/**
+ * 이메일 인증 재전송 유스케이스
+ */
+@injectable()
+export class ResendVerificationUseCase {
+  private readonly logger = new Logger('ResendVerificationUseCase');
+
+  constructor(
+    @inject('UserRepository') private userRepository: IUserRepository,
+    @inject('EmailService') private emailService: EmailService
+  ) {}
+
+  async execute(input: ResendVerificationInput): Promise<ResendVerificationOutput> {
+    // 1. 입력 검증
+    const validatedInput = ResendVerificationInputSchema.parse(input);
+    
+    this.logger.info('이메일 인증 재전송 요청', { userId: validatedInput.userId });
+
+    try {
+      // 2. 사용자 조회
+      const user = await this.userRepository.findById(
+        UserId.from(validatedInput.userId)
       );
+      
+      if (!user) {
+        throw new NotFoundError('사용자를 찾을 수 없습니다');
+      }
+
+      // 3. 이미 인증된 경우
+      if (user.emailVerified) {
+        return {
+          success: false,
+          message: '이미 인증된 이메일입니다'
+        };
+      }
+
+      // 4. 새로운 인증 토큰 생성
+      const verificationToken = await AuthRepository.createEmailVerificationToken(
+        user.id.getValue()
+      );
+
+      // 5. 인증 이메일 발송
+      await this.emailService.sendVerificationEmail(
+        user.email.getValue(),
+        user.name,
+        verificationToken.token
+      );
+
+      this.logger.info('이메일 인증 재전송 완료', { 
+        userId: user.id.getValue() 
+      });
+
+      return {
+        success: true,
+        message: '인증 이메일이 재전송되었습니다'
+      };
+    } catch (error) {
+      this.logger.error('이메일 인증 재전송 실패', error);
+      throw error;
     }
   }
 }

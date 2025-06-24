@@ -1,13 +1,12 @@
-// apps/backend/src/infrastructure/web/controllers/auth.controller.ts
+// /Users/workspace/paperly/apps/backend/src/infrastructure/web/controllers/auth.controller.ts
 
 import { Router, Request, Response, NextFunction } from 'express';
 import { inject, injectable } from 'tsyringe';
 import { RegisterUseCase } from '../../../application/use-cases/auth/register.use-case';
 import { LoginUseCase } from '../../../application/use-cases/auth/login.use-case';
-import { VerifyEmailUseCase } from '../../../application/use-cases/auth/verify-email.use-case';
-import { RefreshTokenUseCase } from '../../../application/use-cases/auth/refresh-token.use-case';
-import { AppError, ErrorCode } from '../../../shared/errors/app-error';
-import { logger } from '../../logging/logger';
+import { VerifyEmailUseCase, ResendVerificationUseCase } from '../../../application/use-cases/auth/verify-email.use-case';
+import { RefreshTokenUseCase, LogoutUseCase } from '../../../application/use-cases/auth/refresh-token.use-case';
+import { Logger } from '../../logging/Logger';
 
 /**
  * 인증 관련 API 컨트롤러
@@ -22,12 +21,15 @@ import { logger } from '../../logging/logger';
 @injectable()
 export class AuthController {
   public readonly router: Router;
+  private readonly logger = new Logger('AuthController');
 
   constructor(
     @inject(RegisterUseCase) private registerUseCase: RegisterUseCase,
     @inject(LoginUseCase) private loginUseCase: LoginUseCase,
     @inject(VerifyEmailUseCase) private verifyEmailUseCase: VerifyEmailUseCase,
-    @inject(RefreshTokenUseCase) private refreshTokenUseCase: RefreshTokenUseCase
+    @inject(ResendVerificationUseCase) private resendVerificationUseCase: ResendVerificationUseCase,
+    @inject(RefreshTokenUseCase) private refreshTokenUseCase: RefreshTokenUseCase,
+    @inject(LogoutUseCase) private logoutUseCase: LogoutUseCase
   ) {
     this.router = Router();
     this.setupRoutes();
@@ -60,7 +62,7 @@ export class AuthController {
    *   email: string
    *   password: string
    *   name: string
-   *   birthDate: string (ISO 8601)
+   *   birthDate: string (YYYY-MM-DD)
    *   gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say'
    * }
    */
@@ -73,11 +75,11 @@ export class AuthController {
         data: {
           user: result.user,
           tokens: result.tokens,
-          emailVerificationSent: result.emailVerificationSent,
-          message: result.emailVerificationSent 
-            ? '회원가입이 완료되었습니다. 이메일을 확인해주세요.'
-            : '회원가입이 완료되었습니다.'
-        }
+          emailVerificationSent: result.emailVerificationSent
+        },
+        message: result.emailVerificationSent 
+          ? '회원가입이 완료되었습니다. 이메일을 확인해주세요.'
+          : '회원가입이 완료되었습니다.'
       });
     } catch (error) {
       next(error);
@@ -91,23 +93,19 @@ export class AuthController {
    *   email: string
    *   password: string
    * }
-   * @headers {
-   *   x-device-id: string
-   *   user-agent: string
-   * }
    */
   private async login(req: Request, res: Response, next: NextFunction) {
     try {
       // 디바이스 정보 추출
-      const deviceId = req.headers['x-device-id'] as string || this.generateDeviceId();
-      const userAgent = req.headers['user-agent'] || 'Unknown';
-      const ipAddress = this.getClientIp(req);
+      const deviceInfo = {
+        deviceId: req.headers['x-device-id'] as string,
+        userAgent: req.headers['user-agent'],
+        ipAddress: req.ip || req.connection.remoteAddress
+      };
 
       const result = await this.loginUseCase.execute({
         ...req.body,
-        deviceId,
-        userAgent,
-        ipAddress
+        deviceInfo
       });
 
       res.json({
@@ -115,7 +113,8 @@ export class AuthController {
         data: {
           user: result.user,
           tokens: result.tokens
-        }
+        },
+        message: '로그인되었습니다.'
       });
     } catch (error) {
       next(error);
@@ -131,21 +130,23 @@ export class AuthController {
    */
   private async refreshToken(req: Request, res: Response, next: NextFunction) {
     try {
-      const { refreshToken } = req.body;
+      // 디바이스 정보 추출
+      const deviceInfo = {
+        deviceId: req.headers['x-device-id'] as string,
+        userAgent: req.headers['user-agent'],
+        ipAddress: req.ip || req.connection.remoteAddress
+      };
 
-      if (!refreshToken) {
-        throw new AppError(
-          ErrorCode.BAD_REQUEST,
-          'Refresh Token이 필요합니다'
-        );
-      }
-
-      const result = await this.refreshTokenUseCase.execute({ refreshToken });
+      const result = await this.refreshTokenUseCase.execute({
+        refreshToken: req.body.refreshToken,
+        deviceInfo
+      });
 
       res.json({
         success: true,
         data: {
-          tokens: result
+          user: result.user,
+          tokens: result.tokens
         }
       });
     } catch (error) {
@@ -156,38 +157,25 @@ export class AuthController {
   /**
    * 로그아웃
    * 
-   * @headers {
-   *   authorization: Bearer {accessToken}
-   * }
    * @body {
-   *   refreshToken?: string (특정 기기만 로그아웃)
-   *   allDevices?: boolean (모든 기기에서 로그아웃)
+   *   refreshToken?: string
+   *   allDevices?: boolean
    * }
    */
   private async logout(req: Request, res: Response, next: NextFunction) {
     try {
-      // auth 미들웨어에서 주입된 사용자 정보
-      const userId = (req as any).user?.sub;
-      
-      if (!userId) {
-        throw new AppError(
-          ErrorCode.UNAUTHORIZED,
-          '인증이 필요합니다'
-        );
-      }
+      // 인증된 사용자의 경우 req.user에서 userId 가져오기
+      const userId = (req as any).user?.userId;
 
-      const { refreshToken, allDevices } = req.body;
-
-      // TODO: TokenService에 로그아웃 메서드 추가 필요
-      // if (allDevices) {
-      //   await this.tokenService.revokeAllRefreshTokens(userId);
-      // } else if (refreshToken) {
-      //   await this.tokenService.revokeRefreshToken(refreshToken);
-      // }
+      const result = await this.logoutUseCase.execute({
+        refreshToken: req.body.refreshToken,
+        allDevices: req.body.allDevices,
+        userId
+      });
 
       res.json({
-        success: true,
-        message: '로그아웃되었습니다'
+        success: result.success,
+        message: result.message
       });
     } catch (error) {
       next(error);
@@ -203,20 +191,14 @@ export class AuthController {
    */
   private async verifyEmail(req: Request, res: Response, next: NextFunction) {
     try {
-      const { token } = req.query;
-
-      if (!token || typeof token !== 'string') {
-        throw new AppError(
-          ErrorCode.BAD_REQUEST,
-          '인증 토큰이 필요합니다'
-        );
-      }
-
-      const result = await this.verifyEmailUseCase.execute({ token });
+      const result = await this.verifyEmailUseCase.execute({
+        token: req.query.token as string
+      });
 
       res.json({
-        success: true,
-        data: result
+        success: result.success,
+        data: result.user,
+        message: result.message
       });
     } catch (error) {
       next(error);
@@ -226,60 +208,25 @@ export class AuthController {
   /**
    * 인증 메일 재발송
    * 
-   * @headers {
-   *   authorization: Bearer {accessToken}
+   * @body {
+   *   userId: string
    * }
    */
   private async resendVerification(req: Request, res: Response, next: NextFunction) {
     try {
-      // auth 미들웨어에서 주입된 사용자 정보
-      const user = (req as any).user;
-      
-      if (!user) {
-        throw new AppError(
-          ErrorCode.UNAUTHORIZED,
-          '인증이 필요합니다'
-        );
-      }
+      // 인증된 사용자의 경우 req.user에서 userId 가져오기
+      const userId = (req as any).user?.userId || req.body.userId;
 
-      if (user.emailVerified) {
-        throw new AppError(
-          ErrorCode.BAD_REQUEST,
-          '이미 이메일 인증이 완료되었습니다'
-        );
-      }
-
-      // TODO: ResendVerificationUseCase 구현 필요
-      // const result = await this.resendVerificationUseCase.execute({
-      //   userId: user.sub
-      // });
+      const result = await this.resendVerificationUseCase.execute({
+        userId
+      });
 
       res.json({
-        success: true,
-        message: '인증 메일이 재발송되었습니다'
+        success: result.success,
+        message: result.message
       });
     } catch (error) {
       next(error);
     }
-  }
-
-  /**
-   * 클라이언트 IP 추출
-   */
-  private getClientIp(req: Request): string {
-    const forwarded = req.headers['x-forwarded-for'] as string;
-    const ip = forwarded 
-      ? forwarded.split(',')[0].trim()
-      : req.socket.remoteAddress || '';
-    
-    // IPv6 localhost를 IPv4로 변환
-    return ip === '::1' ? '127.0.0.1' : ip;
-  }
-
-  /**
-   * 디바이스 ID 생성 (클라이언트가 제공하지 않은 경우)
-   */
-  private generateDeviceId(): string {
-    return `web-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 }
