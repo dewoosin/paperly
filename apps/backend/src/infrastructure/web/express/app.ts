@@ -1,9 +1,4 @@
-/**
- * app.ts
- * 
- * Express 애플리케이션 설정
- * 미들웨어, 라우트, 에러 핸들링 등을 구성
- */
+// apps/backend/src/infrastructure/web/express/app.ts
 
 import express, { Application } from 'express';
 import cors from 'cors';
@@ -11,41 +6,42 @@ import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
 import { config } from '../../config/env.config';
-import { morganStream } from '../../logging/logger';
+import { morganStream } from '../../logging/Logger';
 import { errorHandler } from './middlewares/error.middleware';
 import { notFoundHandler } from './middlewares/notFound.middleware';
 import { rateLimiter } from './middlewares/rateLimit.middleware';
 import { requestId } from './middlewares/requestId.middleware';
 import { apiRouter } from '../routes';
 
-/**
- * Express 앱 생성 및 설정
- */
 export function createApp(): Application {
   const app = express();
 
-  /**
-   * 기본 미들웨어 설정
-   */
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, x-device-id'); // x-device-id 추가
+    
+    // Preflight 요청 처리
+    if (req.method === 'OPTIONS') {
+      res.sendStatus(200);
+      return;
+    }
+    
+    next();
+  });
   
-  // 보안 헤더 설정
-  app.use(helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        scriptSrc: ["'self'"],
-        imgSrc: ["'self'", "data:", "https:"],
-      },
-    },
-  }));
-
-  // CORS 설정
+  // 기본 CORS 미들웨어도 사용
   app.use(cors({
-    origin: config.CORS_ORIGIN,
+    origin: true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID', 'x-device-id'] // x-device-id 추가
+  }));
+
+  // 보안 헤더 설정 (CORS 이후에)
+  app.use(helmet({
+    contentSecurityPolicy: false, // 개발 환경에서는 비활성화
+    crossOriginEmbedderPolicy: false
   }));
 
   // 요청 본문 파싱
@@ -61,12 +57,12 @@ export function createApp(): Application {
   // HTTP 로깅
   app.use(morgan('combined', { stream: morganStream }));
 
-  // Rate limiting
-  app.use(rateLimiter);
+  // Rate limiting (개발 환경에서는 관대하게)
+  if (config.NODE_ENV === 'production') {
+    app.use(rateLimiter);
+  }
 
-  /**
-   * 헬스 체크 엔드포인트
-   */
+  // 헬스 체크 엔드포인트
   app.get('/health', (req, res) => {
     res.json({
       status: 'healthy',
@@ -76,26 +72,18 @@ export function createApp(): Application {
     });
   });
 
-  /**
-   * API 라우트
-   */
+  // API 라우트
   app.use(config.API_PREFIX, apiRouter);
 
-  /**
-   * 정적 파일 서빙 (프로덕션에서는 Nginx 권장)
-   */
+  // 정적 파일 서빙
   if (config.NODE_ENV !== 'production') {
     app.use('/uploads', express.static('uploads'));
   }
 
-  /**
-   * 404 핸들러
-   */
+  // 404 핸들러
   app.use(notFoundHandler);
 
-  /**
-   * 글로벌 에러 핸들러
-   */
+  // 글로벌 에러 핸들러
   app.use(errorHandler);
 
   return app;

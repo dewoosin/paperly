@@ -2,8 +2,7 @@
 
 import { Router } from 'express';
 import { container } from 'tsyringe';
-import { Logger } from '../../logging/logger';
-import { AuthController } from '../controllers/auth.controller';
+import { Logger } from '../../logging/Logger';
 
 const logger = new Logger('Routes');
 
@@ -22,49 +21,96 @@ apiRouter.get('/', (req, res) => {
 });
 
 /**
- * Auth 라우트 설정
+ * 임시 Auth 라우트 (테스트용)
  */
-function setupAuthRoutes(): Router {
-  const authController = container.resolve(AuthController);
+function setupTempAuthRoutes(): Router {
   const authRouter = Router();
 
-  // 회원가입
-  authRouter.post('/register', (req, res, next) => {
-    authController.router.handle(req, res, next);
+  // 임시 회원가입 엔드포인트
+  authRouter.post('/register', (req, res) => {
+    logger.info('임시 회원가입 요청 받음', { body: req.body });
+    
+    // 임시 응답
+    res.status(201).json({
+      success: true,
+      data: {
+        user: {
+          id: 'temp-user-id',
+          email: req.body.email,
+          name: req.body.name
+        },
+        tokens: {
+          accessToken: 'temp-access-token',
+          refreshToken: 'temp-refresh-token'
+        },
+        emailVerificationSent: false,
+        message: '임시 회원가입이 완료되었습니다.'
+      }
+    });
   });
 
-  // 로그인
-  authRouter.post('/login', (req, res, next) => {
-    authController.router.handle(req, res, next);
+  // 임시 로그인 엔드포인트
+  authRouter.post('/login', (req, res) => {
+    logger.info('임시 로그인 요청 받음', { body: req.body });
+    
+    res.json({
+      success: true,
+      data: {
+        user: {
+          id: 'temp-user-id',
+          email: req.body.email,
+          name: 'Test User',
+          emailVerified: true
+        },
+        tokens: {
+          accessToken: 'temp-access-token',
+          refreshToken: 'temp-refresh-token'
+        }
+      }
+    });
   });
 
-  // 토큰 갱신
-  authRouter.post('/refresh', (req, res, next) => {
-    authController.router.handle(req, res, next);
+  // 기타 임시 엔드포인트들
+  authRouter.post('/refresh', (req, res) => {
+    res.json({
+      success: true,
+      data: {
+        tokens: {
+          accessToken: 'new-temp-access-token',
+          refreshToken: 'new-temp-refresh-token'
+        }
+      }
+    });
   });
 
-  // 로그아웃
-  authRouter.post('/logout', (req, res, next) => {
-    authController.router.handle(req, res, next);
+  authRouter.post('/logout', (req, res) => {
+    res.json({
+      success: true,
+      message: '로그아웃 되었습니다.'
+    });
   });
 
-  // 이메일 인증
-  authRouter.get('/verify-email', (req, res, next) => {
-    authController.router.handle(req, res, next);
+  authRouter.get('/verify-email', (req, res) => {
+    res.json({
+      success: true,
+      message: '이메일 인증이 완료되었습니다.'
+    });
   });
 
-  // 인증 메일 재발송
-  authRouter.post('/resend-verification', (req, res, next) => {
-    authController.router.handle(req, res, next);
+  authRouter.post('/resend-verification', (req, res) => {
+    res.json({
+      success: true,
+      message: '인증 메일이 재발송되었습니다.'
+    });
   });
 
   return authRouter;
 }
 
-// Auth 라우트 등록
-apiRouter.use('/auth', setupAuthRoutes());
+// 임시 Auth 라우트 등록
+apiRouter.use('/auth', setupTempAuthRoutes());
 
-logger.info('API routes initialized with Auth endpoints');
+logger.info('API routes initialized with temporary Auth endpoints');
 
 // TODO: Day 4 - User routes  
 // apiRouter.use('/users', userRouter);

@@ -1,76 +1,138 @@
 // apps/backend/src/domain/repositories/refresh-token.repository.ts
 
-import { RefreshToken } from '../entities/refresh-token.entity';
-import { Token } from '../value-objects/auth.value-objects';
+import { Token, DeviceInfo } from '../value-objects/auth.value-objects';
 import { UserId } from '../value-objects/user-id.value-object';
-import { User } from '../entities/user.entity';
 
 /**
- * Refresh Token Repository 인터페이스
- * 
- * JWT Refresh Token 관리를 위한 저장소 인터페이스
+ * Refresh Token 리포지토리 인터페이스
  */
 export interface IRefreshTokenRepository {
   /**
    * Refresh Token 저장
-   * 
-   * @param refreshToken - 저장할 Refresh Token 엔티티
-   * @returns 저장된 토큰
    */
-  save(refreshToken: RefreshToken): Promise<RefreshToken>;
+  save(refreshToken: {
+    token: Token;
+    userId: UserId;
+    expiresAt: Date;
+    deviceInfo?: DeviceInfo;
+  }): Promise<void>;
 
   /**
-   * 토큰 값으로 조회
-   * 
-   * @param token - 토큰 Value Object
-   * @returns Refresh Token 엔티티 또는 null
+   * Token으로 조회
    */
-  findByToken(token: Token): Promise<RefreshToken | null>;
+  findByToken(token: Token): Promise<{
+    userId: UserId;
+    expiresAt: Date;
+    deviceInfo?: DeviceInfo;
+  } | null>;
 
   /**
-   * 토큰으로 사용자 조회
-   * 
-   * @param token - 토큰 Value Object
-   * @returns 사용자 엔티티 또는 null
+   * 사용자의 모든 토큰 무효화
    */
-  findUserByToken(token: Token): Promise<User | null>;
+  revokeAllByUserId(userId: UserId): Promise<void>;
 
   /**
-   * 사용자 ID로 모든 토큰 조회
-   * 
-   * @param userId - 사용자 ID
-   * @returns Refresh Token 목록
+   * 특정 토큰 무효화
    */
-  findAllByUserId(userId: UserId): Promise<RefreshToken[]>;
-
-  /**
-   * 토큰 삭제
-   * 
-   * @param id - 삭제할 토큰 ID
-   */
-  delete(id: string): Promise<void>;
-
-  /**
-   * 사용자의 모든 토큰 삭제
-   * 
-   * @param userId - 사용자 ID
-   * @returns 삭제된 토큰 개수
-   */
-  deleteAllByUserId(userId: UserId): Promise<number>;
+  revokeByToken(token: Token): Promise<void>;
 
   /**
    * 만료된 토큰 정리
-   * 
-   * @returns 삭제된 토큰 개수
    */
-  deleteExpired(): Promise<number>;
+  cleanupExpiredTokens(): Promise<void>;
+}
+
+// =============================================================================
+
+// apps/backend/src/domain/repositories/email-verification.repository.ts
+
+import { Token } from '../value-objects/auth.value-objects';
+import { UserId } from '../value-objects/user-id.value-object';
+import { Email } from '../value-objects/auth.value-objects';
+
+/**
+ * 이메일 인증 리포지토리 인터페이스
+ */
+export interface IEmailVerificationRepository {
+  /**
+   * 이메일 인증 정보 저장
+   */
+  save(verification: {
+    userId: UserId;
+    email: Email;
+    token: Token;
+    expiresAt: Date;
+    verified: boolean;
+  }): Promise<void>;
 
   /**
-   * 특정 디바이스의 토큰 조회
-   * 
-   * @param userId - 사용자 ID
-   * @param deviceId - 디바이스 ID
-   * @returns Refresh Token 또는 null
+   * Token으로 인증 정보 조회
    */
-  findByUserAndDevice(userId: UserId, deviceId: string): Promise<RefreshToken | null>;
+  findByToken(token: Token): Promise<{
+    userId: UserId;
+    email: Email;
+    expiresAt: Date;
+    verified: boolean;
+    isExpired(): boolean;
+    isVerified(): boolean;
+    markAsVerified(): void;
+  } | null>;
+
+  /**
+   * 사용자 ID로 인증 정보 조회
+   */
+  findByUserId(userId: UserId): Promise<{
+    email: Email;
+    token: Token;
+    expiresAt: Date;
+    verified: boolean;
+  } | null>;
+
+  /**
+   * 만료된 인증 정보 정리
+   */
+  cleanupExpiredVerifications(): Promise<void>;
+}
+
+// =============================================================================
+
+// apps/backend/src/domain/repositories/login-attempt.repository.ts
+
+import { Email } from '../value-objects/auth.value-objects';
+
+/**
+ * 로그인 시도 기록 정보
+ */
+export interface LoginAttempt {
+  email: string;
+  ipAddress?: string;
+  userAgent: string;
+  success: boolean;
+  failureReason?: string | null;
+  attemptedAt?: Date;
+}
+
+/**
+ * 로그인 시도 리포지토리 인터페이스
+ */
+export interface ILoginAttemptRepository {
+  /**
+   * 로그인 시도 기록 저장
+   */
+  create(attempt: LoginAttempt): Promise<void>;
+
+  /**
+   * 특정 이메일의 최근 실패 시도 수 조회
+   */
+  getRecentFailedAttempts(email: Email, timeWindowMinutes: number): Promise<number>;
+
+  /**
+   * 특정 IP의 최근 시도 수 조회
+   */
+  getRecentAttemptsByIp(ipAddress: string, timeWindowMinutes: number): Promise<number>;
+
+  /**
+   * 오래된 로그인 시도 기록 정리
+   */
+  cleanupOldAttempts(olderThanDays: number): Promise<void>;
 }
