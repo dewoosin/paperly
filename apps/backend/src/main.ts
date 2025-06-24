@@ -1,16 +1,16 @@
-/**
- * main.ts
- * 
- * 애플리케이션 진입점
- * 서버 시작 및 graceful shutdown 처리
- */
+// /Users/workspace/paperly/apps/backend/src/main.ts
 
 import 'reflect-metadata'; // tsyringe를 위해 필요
+import { setupContainer } from './infrastructure/config/container';
+
+// 컨테이너 설정을 가장 먼저 실행
+setupContainer();
+
+// 그 다음에 나머지 import
 import { createApp } from './infrastructure/web/express/app';
 import { config } from './infrastructure/config/env.config';
 import { db } from './infrastructure/config/database.config';
-import { Logger } from './infrastructure/logging/logger';
-import { setupContainer } from './infrastructure/config/container';
+import { Logger } from './infrastructure/logging/Logger';
 
 const logger = new Logger('Main');
 
@@ -20,10 +20,6 @@ const logger = new Logger('Main');
 async function bootstrap() {
   try {
     logger.info('Starting Paperly backend server...');
-
-    // 의존성 주입 컨테이너 설정
-    setupContainer();
-    logger.info('Dependency injection container initialized');
 
     // 데이터베이스 연결
     await db.initialize();

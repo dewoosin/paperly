@@ -6,7 +6,7 @@
  */
 
 import { Router } from 'express';
-import { Logger } from '../../logging/Logger';
+import { Logger } from '../../logging/logger';
 import { createAuthRoutes } from './auth.routes';  // 추가
 
 const logger = new Logger('Routes');
@@ -26,8 +26,10 @@ apiRouter.get('/', (req, res) => {
 });
 
 // TODO: Day 3 - Auth routes
-apiRouter.use('/auth', createAuthRoutes());
-
+// Auth routes - 함수로 감싸서 지연 실행
+apiRouter.use('/auth', (req, res, next) => {
+  return createAuthRoutes()(req, res, next);
+});
 // TODO: Day 4 - User routes  
 // apiRouter.use('/users', userRouter);
 

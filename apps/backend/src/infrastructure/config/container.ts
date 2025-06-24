@@ -22,8 +22,8 @@ import { EmailService } from '../email/email.service';
 import { AuthUseCases } from '../../application/use-cases/auth.use-cases';
 import { RegisterUseCase } from '../../application/use-cases/auth/register.use-case';
 import { LoginUseCase } from '../../application/use-cases/auth/login.use-case';
-import { VerifyEmailUseCase } from '../../application/use-cases/auth/verify-email.use-case';
-import { RefreshTokenUseCase } from '../../application/use-cases/auth/refresh-token.use-case';
+import { VerifyEmailUseCase, ResendVerificationUseCase } from '../../application/use-cases/auth/verify-email.use-case';
+import { RefreshTokenUseCase, LogoutUseCase } from '../../application/use-cases/auth/refresh-token.use-case';
 
 // Controllers
 import { AuthController } from '../web/controllers/auth.controller';
@@ -35,51 +35,24 @@ export function setupContainer(): void {
   // Database
   container.registerInstance('Database', db);
 
-  // Repositories
-  container.register('IUserRepository', {
-    useClass: UserRepository
-  });
-  
-  container.register('IAuthRepository', {
-    useClass: AuthRepository
-  });
+  // Repositories - 인스턴스로 등록
+  container.registerInstance('UserRepository', new UserRepository());
+  container.registerInstance('IUserRepository', new UserRepository());
+  // AuthRepository는 static 클래스이므로 클래스 자체를 등록
+  container.registerInstance('IAuthRepository', AuthRepository);
 
-  // Services
-  container.register('IJwtService', {
-    useClass: JwtService
-  });
-  
-  container.register('IPasswordService', {
-    useClass: PasswordService
-  });
-  
-  container.register('IEmailService', {
-    useClass: EmailService
-  });
-
-  container.register('TokenService', {
-    useFactory: () => JwtService
-  });
-
-  container.register('UserRepository', {
-    useFactory: () => new UserRepository()
-  });
+  // Services - 인스턴스로 등록
+  container.registerInstance('EmailService', new EmailService());
+  container.registerInstance('IEmailService', new EmailService());
+  container.registerInstance('TokenService', JwtService);
 
   // Use Cases
-  container.register('AuthUseCases', {
-    useFactory: () => {
-      const userRepository = container.resolve<UserRepository>('UserRepository');
-      const emailService = container.resolve<EmailService>('IEmailService');
-      return new AuthUseCases(userRepository, emailService);
-    }
-  });
-
   container.register(RegisterUseCase, {
     useFactory: () => {
       return new RegisterUseCase(
         container.resolve('UserRepository'),
-        container.resolve('IEmailService'),
-        container.resolve('TokenService')
+        container.resolve('EmailService'),
+        JwtService  // 직접 클래스 사용
       );
     }
   });
@@ -88,7 +61,7 @@ export function setupContainer(): void {
     useFactory: () => {
       return new LoginUseCase(
         container.resolve('UserRepository'),
-        container.resolve('TokenService')
+        JwtService  // 직접 클래스 사용
       );
     }
   });
@@ -97,7 +70,16 @@ export function setupContainer(): void {
     useFactory: () => {
       return new VerifyEmailUseCase(
         container.resolve('UserRepository'),
-        container.resolve('IAuthRepository')
+        container.resolve('EmailService')
+      );
+    }
+  });
+
+  container.register(ResendVerificationUseCase, {
+    useFactory: () => {
+      return new ResendVerificationUseCase(
+        container.resolve('UserRepository'),
+        container.resolve('EmailService')
       );
     }
   });
@@ -106,10 +88,13 @@ export function setupContainer(): void {
     useFactory: () => {
       return new RefreshTokenUseCase(
         container.resolve('UserRepository'),
-        container.resolve('IAuthRepository'),
-        container.resolve('TokenService')
+        JwtService  // 직접 클래스 사용
       );
     }
+  });
+
+  container.register(LogoutUseCase, {
+    useClass: LogoutUseCase
   });
 
   // Controllers

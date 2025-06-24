@@ -1,3 +1,5 @@
+// lib/utils/logger.dart
+
 import 'package:logger/logger.dart';
 import 'package:flutter/foundation.dart';
 
@@ -10,7 +12,7 @@ final logger = _createLogger();
 Logger _createLogger() {
   return Logger(
     printer: _CustomPrinter(),
-    level: kDebugMode ? Level.verbose : Level.warning,
+    level: kDebugMode ? Level.debug : Level.warning,
     filter: kDebugMode ? DevelopmentFilter() : ProductionFilter(),
   );
 }
@@ -24,21 +26,21 @@ class _CustomPrinter extends LogPrinter {
   static const String _bottomBorder = '└─────────────────────────────────────────────────────────';
   
   static final Map<Level, String> _levelEmojis = {
-    Level.verbose: '💬',
+    Level.trace: '🔍',
     Level.debug: '🐛',
     Level.info: 'ℹ️',
     Level.warning: '⚠️',
     Level.error: '❌',
-    Level.wtf: '💥',
+    Level.fatal: '💥',
   };
   
   static final Map<Level, String> _levelLabels = {
-    Level.verbose: 'VERBOSE',
+    Level.trace: 'TRACE',
     Level.debug: 'DEBUG',
     Level.info: 'INFO',
     Level.warning: 'WARNING',
     Level.error: 'ERROR',
-    Level.wtf: 'WTF',
+    Level.fatal: 'FATAL',
   };
 
   @override
@@ -94,35 +96,30 @@ class _CustomPrinter extends LogPrinter {
 extension LoggerExtensions on Logger {
   /// API 요청 로그
   void api(String method, String path, {dynamic data}) {
-    d('🌐 API Request: $method $path', data);
+    d('🌐 API Request: $method $path', error: data);
   }
   
   /// API 응답 로그
   void apiResponse(String method, String path, int statusCode, {dynamic data}) {
     if (statusCode >= 200 && statusCode < 300) {
-      d('✅ API Response: $method $path - $statusCode', data);
+      d('✅ API Response: $method $path - $statusCode', error: data);
     } else {
-      w('⚠️ API Response: $method $path - $statusCode', data);
+      w('⚠️ API Response: $method $path - $statusCode', error: data);
     }
   }
   
   /// 네비게이션 로그
-  void navigation(String route, {Map<String, dynamic>? params}) {
-    d('🧭 Navigation: $route', params);
+  void navigation(String route, {Map<String, dynamic>? arguments}) {
+    i('📱 Navigation: $route', error: arguments);
   }
   
-  /// 사용자 액션 로그
-  void userAction(String action, {Map<String, dynamic>? details}) {
-    i('👆 User Action: $action', details);
+  /// 인증 로그
+  void auth(String action, {Map<String, dynamic>? data}) {
+    i('🔐 Auth: $action', error: data);
   }
   
-  /// 성능 측정 로그
-  void performance(String operation, Duration duration, {Map<String, dynamic>? extra}) {
-    d('⏱️ Performance: $operation took ${duration.inMilliseconds}ms', extra);
-  }
-  
-  /// 분석 이벤트 로그
-  void analytics(String event, {Map<String, dynamic>? properties}) {
-    v('📊 Analytics: $event', properties);
+  /// 비즈니스 로직 로그
+  void business(String action, {dynamic data}) {
+    i('💼 Business: $action', error: data);
   }
 }

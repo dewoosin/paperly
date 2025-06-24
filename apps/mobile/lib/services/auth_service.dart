@@ -1,4 +1,4 @@
-// apps/mobile/lib/services/auth_service.dart
+// lib/services/auth_service.dart
 
 import 'dart:io';
 import 'dart:convert';
@@ -46,10 +46,10 @@ class AuthService {
         },
         onError: (error, handler) async {
           // 401 에러 시 토큰 갱신 시도
-        if (error.response?.statusCode == 401) {
-          await logout();
-          return handler.reject(error);
-        }
+          if (error.response?.statusCode == 401) {
+            await logout();
+            return handler.reject(error);
+          }
           handler.next(error);
         },
       ),
@@ -59,7 +59,7 @@ class AuthService {
   /// 회원가입
   Future<AuthResponse> register(RegisterRequest request) async {
     try {
-      logger.info('회원가입 시도: ${request.email}');
+      logger.i('회원가입 시도: ${request.email}');
       
       final response = await _dio.post(
         '/auth/register',
@@ -77,10 +77,10 @@ class AuthService {
       // 토큰 및 사용자 정보 저장
       await _saveAuthData(authResponse);
       
-      logger.info('회원가입 성공');
+      logger.i('회원가입 성공');
       return authResponse;
     } on DioException catch (e) {
-      logger.error('회원가입 실패', error: e);
+      logger.e('회원가입 실패', error: e);
       throw _handleError(e);
     }
   }
@@ -88,7 +88,7 @@ class AuthService {
   /// 로그인
   Future<AuthResponse> login(LoginRequest request) async {
     try {
-      logger.info('로그인 시도: ${request.email}');
+      logger.i('로그인 시도: ${request.email}');
       
       final response = await _dio.post(
         '/auth/login',
@@ -100,10 +100,10 @@ class AuthService {
       // 토큰 및 사용자 정보 저장
       await _saveAuthData(authResponse);
       
-      logger.info('로그인 성공');
+      logger.i('로그인 성공');
       return authResponse;
     } on DioException catch (e) {
-      logger.error('로그인 실패', error: e);
+      logger.e('로그인 실패', error: e);
       throw _handleError(e);
     }
   }
@@ -124,9 +124,9 @@ class AuthService {
       final tokens = AuthTokens.fromJson(response.data['data']['tokens']);
       await _saveTokens(tokens);
       
-      logger.info('토큰 갱신 성공');
+      logger.i('토큰 갱신 성공');
     } on DioException catch (e) {
-      logger.error('토큰 갱신 실패', error: e);
+      logger.e('토큰 갱신 실패', error: e);
       throw _handleError(e);
     }
   }
@@ -145,11 +145,11 @@ class AuthService {
       );
     } catch (e) {
       // 로그아웃 API 실패해도 로컬 데이터는 삭제
-      logger.error('로그아웃 API 호출 실패', error: e);
+      logger.e('로그아웃 API 호출 실패', error: e);
     } finally {
       // 로컬 저장된 인증 정보 삭제
       await _clearAuthData();
-      logger.info('로그아웃 완료');
+      logger.i('로그아웃 완료');
     }
   }
 
@@ -165,9 +165,9 @@ class AuthService {
         await _saveUser(updatedUser);
       }
       
-      logger.info('이메일 인증 성공');
+      logger.i('이메일 인증 성공');
     } on DioException catch (e) {
-      logger.error('이메일 인증 실패', error: e);
+      logger.e('이메일 인증 실패', error: e);
       throw _handleError(e);
     }
   }
@@ -176,9 +176,9 @@ class AuthService {
   Future<void> resendVerificationEmail() async {
     try {
       await _dio.post('/auth/resend-verification');
-      logger.info('인증 메일 재발송 성공');
+      logger.i('인증 메일 재발송 성공');
     } on DioException catch (e) {
-      logger.error('인증 메일 재발송 실패', error: e);
+      logger.e('인증 메일 재발송 실패', error: e);
       throw _handleError(e);
     }
   }
@@ -191,7 +191,7 @@ class AuthService {
     try {
       return User.fromJson(json.decode(userData));
     } catch (e) {
-      logger.error('사용자 정보 파싱 실패', error: e);
+      logger.e('사용자 정보 파싱 실패', error: e);
       return null;
     }
   }
@@ -248,7 +248,7 @@ class AuthService {
         return iosInfo.identifierForVendor ?? 'unknown';
       }
     } catch (e) {
-      logger.error('디바이스 ID 가져오기 실패', error: e);
+      logger.e('디바이스 ID 가져오기 실패', error: e);
     }
     return 'unknown';
   }
