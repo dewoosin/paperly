@@ -5,11 +5,12 @@
  * 서버 시작 및 graceful shutdown 처리
  */
 
-import 'reflect-metadata'; // TypeORM이나 다른 데코레이터 사용 시 필요
+import 'reflect-metadata'; // tsyringe를 위해 필요
 import { createApp } from './infrastructure/web/express/app';
 import { config } from './infrastructure/config/env.config';
 import { db } from './infrastructure/config/database.config';
 import { Logger } from './infrastructure/logging/Logger';
+import { setupContainer } from './infrastructure/config/container';
 
 const logger = new Logger('Main');
 
@@ -19,6 +20,10 @@ const logger = new Logger('Main');
 async function bootstrap() {
   try {
     logger.info('Starting Paperly backend server...');
+
+    // 의존성 주입 컨테이너 설정
+    setupContainer();
+    logger.info('Dependency injection container initialized');
 
     // 데이터베이스 연결
     await db.initialize();
