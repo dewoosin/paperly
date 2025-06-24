@@ -190,3 +190,12 @@ export class LogoutUseCase {
         message: '로그아웃되었습니다'
       };
     } catch (error) {
+      this.logger.error('로그아웃 실패', error);
+      // 로그아웃은 실패해도 성공으로 처리
+      return {
+        success: true,
+        message: '로그아웃되었습니다'
+      };
+    }
+  }
+}

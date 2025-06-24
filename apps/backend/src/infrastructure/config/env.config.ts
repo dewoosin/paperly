@@ -2,12 +2,12 @@
 
 import { z } from 'zod';
 import { config as dotenvConfig } from 'dotenv';
-import { Logger } from '../logging/Logger';
 
 // .env 파일 로드
 dotenvConfig();
 
-const logger = new Logger('EnvConfig');
+// Logger는 나중에 import (순환 참조 방지)
+let Logger: any;
 
 /**
  * 환경변수 스키마 정의
@@ -107,28 +107,26 @@ function validateEnv(): EnvConfig {
       config.SESSION_SECRET = config.JWT_SECRET + '-session';
     }
     
-    logger.info('Environment variables validated successfully', {
-      NODE_ENV: config.NODE_ENV,
-      PORT: config.PORT
+    // Logger를 동적으로 import (순환 참조 방지)
+    import('../logging/Logger').then(({ Logger: LoggerClass }) => {
+      Logger = LoggerClass;
+      const logger = new Logger('EnvConfig');
+      logger.info('Environment variables validated successfully', {
+        NODE_ENV: config.NODE_ENV,
+        PORT: config.PORT
+      });
     });
     
     return config;
   } catch (error) {
     if (error instanceof z.ZodError) {
-      logger.error('환경변수 검증 실패', {
-        errors: error.errors.map(err => ({
-          path: err.path.join('.'),
-          message: err.message
-        }))
-      });
-      
       console.error('\n❌ 환경변수 설정 오류:\n');
       error.errors.forEach(err => {
         console.error(`  - ${err.path.join('.')}: ${err.message}`);
       });
       console.error('\n💡 .env.example 파일을 참고하여 .env 파일을 생성해주세요.\n');
     } else {
-      logger.error('환경변수 로드 실패', error);
+      console.error('환경변수 로드 실패:', error);
     }
     
     process.exit(1);

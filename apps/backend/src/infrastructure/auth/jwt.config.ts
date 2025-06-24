@@ -1,7 +1,7 @@
 // apps/backend/src/infrastructure/auth/jwt.config.ts
 
 import { z } from 'zod';
-import { config } from '../config/environment';
+import { config } from '../config/env.config';
 
 /**
  * JWT 설정 스키마

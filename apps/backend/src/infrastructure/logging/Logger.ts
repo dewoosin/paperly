@@ -1,7 +1,6 @@
 // /Users/workspace/paperly/apps/backend/src/infrastructure/logging/logger.ts
 
 import winston from 'winston';
-import { config } from '../config/env.config';
 
 /**
  * Winston Logger 인스턴스
@@ -21,9 +20,9 @@ const logLevels = {
   silly: 6
 };
 
-// 환경별 로그 레벨
+// 환경별 로그 레벨 (env.config를 사용하지 않고 직접 process.env 사용)
 const level = (() => {
-  const env = config.NODE_ENV || 'development';
+  const env = process.env.NODE_ENV || 'development';
   const isDevelopment = env === 'development';
   return isDevelopment ? 'debug' : 'info';
 })();
@@ -67,12 +66,12 @@ const devFormat = winston.format.combine(
 const transports = [
   // 콘솔 출력
   new winston.transports.Console({
-    format: config.NODE_ENV === 'development' ? devFormat : format,
+    format: process.env.NODE_ENV === 'development' ? devFormat : format,
   })
 ];
 
 // 프로덕션 환경에서는 파일로도 저장
-if (config.NODE_ENV === 'production') {
+if (process.env.NODE_ENV === 'production') {
   transports.push(
     // 에러 로그 파일
     new winston.transports.File({
@@ -106,6 +105,7 @@ const winstonLogger = winston.createLogger({
  */
 export class Logger {
   private context?: string;
+  private static hostname = require('os').hostname();
 
   constructor(context?: string) {
     this.context = context;
@@ -114,7 +114,7 @@ export class Logger {
   private log(level: string, message: string, meta?: any) {
     const logData = {
       service: 'paperly-backend',
-      hostname: require('os').hostname(),
+      hostname: Logger.hostname,
       pid: process.pid,
       context: this.context,
       ...meta

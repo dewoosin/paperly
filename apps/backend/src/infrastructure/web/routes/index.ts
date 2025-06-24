@@ -6,7 +6,8 @@
  */
 
 import { Router } from 'express';
-import { Logger } from '../../logging/logger';
+import { Logger } from '../../logging/Logger';
+import { createAuthRoutes } from './auth.routes';  // 추가
 
 const logger = new Logger('Routes');
 
@@ -25,7 +26,7 @@ apiRouter.get('/', (req, res) => {
 });
 
 // TODO: Day 3 - Auth routes
-// apiRouter.use('/auth', authRouter);
+apiRouter.use('/auth', createAuthRoutes());
 
 // TODO: Day 4 - User routes  
 // apiRouter.use('/users', userRouter);
