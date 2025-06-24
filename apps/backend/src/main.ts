@@ -1,15 +1,9 @@
-// /Users/workspace/paperly/apps/backend/src/main.ts
+// apps/backend/src/main.ts
 
-import 'reflect-metadata'; // tsyringe를 위해 필요
-import { setupContainer } from './infrastructure/config/container';
-
-// 컨테이너 설정을 가장 먼저 실행
-setupContainer();
-
-// 그 다음에 나머지 import
+import 'reflect-metadata'; // tsyringe 사용을 위해 필요
 import { createApp } from './infrastructure/web/express/app';
 import { config } from './infrastructure/config/env.config';
-import { db } from './infrastructure/config/database.config';
+import { setupContainer } from './infrastructure/config/container';
 import { Logger } from './infrastructure/logging/Logger';
 
 const logger = new Logger('Main');
@@ -21,23 +15,37 @@ async function bootstrap() {
   try {
     logger.info('Starting Paperly backend server...');
 
-    // 데이터베이스 연결
-    await db.initialize();
-    logger.info('Database connected successfully');
+    // 1. DI Container 설정 (데이터베이스 연결 전에)
+    setupContainer();
+    logger.info('DI Container initialized');
 
-    // Express 앱 생성
+    // 2. 데이터베이스 연결 (일단 스킵 - Mock 사용)
+    // await db.initialize();
+    logger.info('Database connection skipped (using Mock services)');
+
+    // 3. Express 앱 생성
     const app = createApp();
 
-    // 서버 시작
+    // 4. 서버 시작
     const server = app.listen(config.PORT, () => {
-      logger.info(`Server is running on port ${config.PORT}`, {
+      logger.info(`🚀 Server is running on port ${config.PORT}`, {
         environment: config.NODE_ENV,
         apiPrefix: config.API_PREFIX,
         corsOrigin: config.CORS_ORIGIN,
       });
+      
+      logger.info('📋 Available endpoints:');
+      logger.info('  GET  /health');
+      logger.info('  GET  /api/v1/');
+      logger.info('  POST /api/v1/auth/register');
+      logger.info('  POST /api/v1/auth/login');
+      logger.info('  POST /api/v1/auth/refresh');
+      logger.info('  POST /api/v1/auth/logout');
+      logger.info('  GET  /api/v1/auth/verify-email');
+      logger.info('  POST /api/v1/auth/resend-verification');
     });
 
-    // Graceful shutdown 처리
+    // 5. Graceful shutdown 처리
     setupGracefulShutdown(server);
 
   } catch (error) {
@@ -59,12 +67,9 @@ function setupGracefulShutdown(server: any) {
     });
 
     try {
-      // 데이터베이스 연결 종료
-      await db.close();
+      // 데이터베이스 연결 종료 (나중에 구현)
+      // await db.close();
       logger.info('Database connection closed');
-
-      // 기타 정리 작업
-      // Redis 연결 종료, 파일 핸들 닫기 등
 
       logger.info('Graceful shutdown completed');
       process.exit(0);

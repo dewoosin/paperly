@@ -1,106 +1,132 @@
-/**
- * container.ts
- * 
- * tsyringe 의존성 주입 컨테이너 설정
- * 모든 서비스, 레포지토리, 유스케이스를 등록합니다.
- */
+// apps/backend/src/infrastructure/config/container.ts
 
 import 'reflect-metadata';
 import { container } from 'tsyringe';
-import { db } from '../config/database.config';
-
-// Repositories
-import { UserRepository } from '../repositories/user.repository';
-import { AuthRepository } from '../repositories/auth.repository';
-
-// Services
-import { JwtService } from '../auth/jwt.service';
-import { PasswordService } from '../auth/password.service';
-import { EmailService } from '../email/email.service';
 
 // Use Cases
-import { AuthUseCases } from '../../application/use-cases/auth.use-cases';
 import { RegisterUseCase } from '../../application/use-cases/auth/register.use-case';
 import { LoginUseCase } from '../../application/use-cases/auth/login.use-case';
-import { VerifyEmailUseCase, ResendVerificationUseCase } from '../../application/use-cases/auth/verify-email.use-case';
-import { RefreshTokenUseCase, LogoutUseCase } from '../../application/use-cases/auth/refresh-token.use-case';
+import { RefreshTokenUseCase } from '../../application/use-cases/auth/refresh-token.use-case';
+import { VerifyEmailUseCase } from '../../application/use-cases/auth/verify-email.use-case';
 
 // Controllers
 import { AuthController } from '../web/controllers/auth.controller';
 
+// Services (임시 구현)
+import { Logger } from '../logging/logger';
+
+const logger = new Logger('Container');
+
 /**
- * 의존성 주입 컨테이너 초기화
+ * 임시 Mock 서비스들
+ * 실제 구현이 완성될 때까지 사용
  */
-export function setupContainer(): void {
-  // Database
-  container.registerInstance('Database', db);
 
-  // Repositories - 인스턴스로 등록
-  container.registerInstance('UserRepository', new UserRepository());
-  container.registerInstance('IUserRepository', new UserRepository());
-  // AuthRepository는 static 클래스이므로 클래스 자체를 등록
-  container.registerInstance('IAuthRepository', AuthRepository);
+// Mock User Repository
+class MockUserRepository {
+  async findByEmail(email: any) {
+    return null; // 사용자 없음 - 회원가입 가능
+  }
+  
+  async save(user: any) {
+    logger.info('사용자 저장됨 (Mock)', { user });
+    return user;
+  }
+  
+  async findById(id: any) {
+    return null;
+  }
+}
 
-  // Services - 인스턴스로 등록
-  container.registerInstance('EmailService', new EmailService());
-  container.registerInstance('IEmailService', new EmailService());
-  container.registerInstance('TokenService', JwtService);
+// Mock Email Service
+class MockEmailService {
+  async sendVerificationEmail(email: string, name: string, token: string) {
+    logger.info('인증 이메일 발송됨 (Mock)', { email, name });
+    return true;
+  }
+}
+
+// Mock Token Service
+class MockTokenService {
+  async generateAuthTokens(user: any) {
+    const userId = Date.now().toString();
+    return {
+      accessToken: `mock_access_${userId}`,
+      refreshToken: `mock_refresh_${userId}`
+    };
+  }
+  
+  async refreshTokens(token: any) {
+    const userId = Date.now().toString();
+    return {
+      accessToken: `mock_access_${userId}`,
+      refreshToken: `mock_refresh_${userId}`
+    };
+  }
+  
+  async generateEmailVerificationToken(userId: any) {
+    return `mock_verify_${userId}`;
+  }
+}
+
+// Mock Refresh Token Repository
+class MockRefreshTokenRepository {
+  async findByToken(token: any) {
+    return null;
+  }
+  
+  async save(tokenData: any) {
+    return tokenData;
+  }
+  
+  async create(tokenData: any) {
+    return tokenData;
+  }
+}
+
+// Mock Email Verification Repository
+class MockEmailVerificationRepository {
+  async findByToken(token: any) {
+    return null;
+  }
+  
+  async save(verification: any) {
+    return verification;
+  }
+}
+
+// Mock Login Attempt Repository
+class MockLoginAttemptRepository {
+  async create(attempt: any) {
+    logger.info('로그인 시도 기록됨 (Mock)', attempt);
+    return attempt;
+  }
+}
+
+/**
+ * DI Container 설정
+ */
+export function setupContainer() {
+  logger.info('Setting up DI container...');
+
+  // Repositories
+  container.registerSingleton('UserRepository', MockUserRepository);
+  container.registerSingleton('RefreshTokenRepository', MockRefreshTokenRepository);
+  container.registerSingleton('EmailVerificationRepository', MockEmailVerificationRepository);
+  container.registerSingleton('LoginAttemptRepository', MockLoginAttemptRepository);
+
+  // Services
+  container.registerSingleton('EmailService', MockEmailService);
+  container.registerSingleton('TokenService', MockTokenService);
 
   // Use Cases
-  container.register(RegisterUseCase, {
-    useFactory: () => {
-      return new RegisterUseCase(
-        container.resolve('UserRepository'),
-        container.resolve('EmailService'),
-        JwtService  // 직접 클래스 사용
-      );
-    }
-  });
-
-  container.register(LoginUseCase, {
-    useFactory: () => {
-      return new LoginUseCase(
-        container.resolve('UserRepository'),
-        JwtService  // 직접 클래스 사용
-      );
-    }
-  });
-
-  container.register(VerifyEmailUseCase, {
-    useFactory: () => {
-      return new VerifyEmailUseCase(
-        container.resolve('UserRepository'),
-        container.resolve('EmailService')
-      );
-    }
-  });
-
-  container.register(ResendVerificationUseCase, {
-    useFactory: () => {
-      return new ResendVerificationUseCase(
-        container.resolve('UserRepository'),
-        container.resolve('EmailService')
-      );
-    }
-  });
-
-  container.register(RefreshTokenUseCase, {
-    useFactory: () => {
-      return new RefreshTokenUseCase(
-        container.resolve('UserRepository'),
-        JwtService  // 직접 클래스 사용
-      );
-    }
-  });
-
-  container.register(LogoutUseCase, {
-    useClass: LogoutUseCase
-  });
+  container.registerSingleton(RegisterUseCase, RegisterUseCase);
+  container.registerSingleton(LoginUseCase, LoginUseCase);
+  container.registerSingleton(RefreshTokenUseCase, RefreshTokenUseCase);
+  container.registerSingleton(VerifyEmailUseCase, VerifyEmailUseCase);
 
   // Controllers
-  container.register(AuthController, {
-    useClass: AuthController
-  });
+  container.registerSingleton(AuthController, AuthController);
 
-  console.log('✅ 의존성 주입 컨테이너 설정 완료');
+  logger.info('DI container setup completed');
 }

@@ -1,4 +1,4 @@
-// apps/mobile/lib/screens/auth/login_screen.dart
+// lib/screens/auth/login_screen.dart
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -97,10 +97,17 @@ class _LoginScreenState extends State<LoginScreen>
         _errorMessage = e.toString().replaceAll('Exception: ', '');
       });
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      setState(() {
+        _isLoading = false;
+      });
     }
+  }
+
+  /// 에러 메시지 표시
+  void _showError(String message) {
+    setState(() {
+      _errorMessage = message;
+    });
   }
 
   @override
@@ -109,157 +116,152 @@ class _LoginScreenState extends State<LoginScreen>
     
     return Scaffold(
       backgroundColor: MujiTheme.bg,
-      body: GestureDetector(
-        onTap: () => FocusScope.of(context).unfocus(),
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              minHeight: MediaQuery.of(context).size.height,
-            ),
+      body: SafeArea(
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: SlideTransition(
+            position: _slideAnimation,
             child: Padding(
-              padding: EdgeInsets.fromLTRB(24, safeTop + 60, 24, 40),
-              child: FadeTransition(
-                opacity: _fadeAnimation,
-                child: SlideTransition(
-                  position: _slideAnimation,
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // 로고
-                        _buildLogo(),
-                        
-                        const SizedBox(height: 48),
-                        
-                        // 타이틀
-                        Text(
-                          '다시 만나서\n반가워요',
-                          style: MujiTheme.mobileH1.copyWith(
-                            height: 1.2,
-                          ),
-                        ),
-                        
-                        const SizedBox(height: 8),
-                        
-                        Text(
-                          '계속해서 지식의 여정을 이어가세요',
-                          style: MujiTheme.mobileCaption,
-                        ),
-                        
-                        const SizedBox(height: 40),
-                        
-                        // 에러 메시지
-                        if (_errorMessage != null) ...[
-                          _buildErrorMessage(),
-                          const SizedBox(height: 20),
-                        ],
-                        
-                        // 이메일 입력
-                        MujiTextField(
-                          controller: _emailController,
-                          label: '이메일',
-                          hint: 'example@email.com',
-                          keyboardType: TextInputType.emailAddress,
-                          textInputAction: TextInputAction.next,
-                          prefixIcon: CupertinoIcons.mail,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return '이메일을 입력해주세요';
-                            }
-                            if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                                .hasMatch(value)) {
-                              return '올바른 이메일 형식이 아닙니다';
-                            }
-                            return null;
-                          },
-                        ),
-                        
-                        const SizedBox(height: 20),
-                        
-                        // 비밀번호 입력
-                        MujiTextField(
-                          controller: _passwordController,
-                          label: '비밀번호',
-                          hint: '비밀번호를 입력하세요',
-                          obscureText: !_isPasswordVisible,
-                          textInputAction: TextInputAction.done,
-                          prefixIcon: CupertinoIcons.lock,
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _isPasswordVisible
-                                  ? CupertinoIcons.eye_slash
-                                  : CupertinoIcons.eye,
-                              color: MujiTheme.textLight,
-                              size: 20,
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                _isPasswordVisible = !_isPasswordVisible;
-                              });
-                            },
-                          ),
-                          onFieldSubmitted: (_) => _handleLogin(),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return '비밀번호를 입력해주세요';
-                            }
-                            return null;
-                          },
-                        ),
-                        
-                        const SizedBox(height: 12),
-                        
-                        // 비밀번호 찾기
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: () {
-                              // TODO: 비밀번호 찾기 화면
-                            },
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              minimumSize: const Size(0, 0),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            child: Text(
-                              '비밀번호를 잊으셨나요?',
-                              style: MujiTheme.mobileCaption.copyWith(
-                                color: MujiTheme.sage,
-                                decoration: TextDecoration.underline,
-                              ),
-                            ),
-                          ),
-                        ),
-                        
-                        const SizedBox(height: 32),
-                        
-                        // 로그인 버튼
-                        MujiButton(
-                          text: '로그인',
-                          onPressed: _isLoading ? null : _handleLogin,
-                          isLoading: _isLoading,
-                          style: MujiButtonStyle.primary,
-                        ),
-                        
-                        const SizedBox(height: 24),
-                        
-                        // 또는 구분선
-                        _buildDivider(),
-                        
-                        const SizedBox(height: 24),
-                        
-                        // 소셜 로그인 버튼들
-                        _buildSocialLoginButtons(),
-                        
-                        const Spacer(),
-                        
-                        // 회원가입 안내
-                        _buildRegisterPrompt(),
-                      ],
+              padding: const EdgeInsets.all(24.0),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 40),
+                    
+                    // 로고
+                    Center(child: _buildLogo()),
+                    
+                    const SizedBox(height: 32),
+                    
+                    // 제목
+                    Text(
+                      '로그인',
+                      style: MujiTheme.mobileH1.copyWith(
+                        color: MujiTheme.textDark,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                  ),
+                    
+                    const SizedBox(height: 8),
+                    
+                    // 부제목
+                    Text(
+                      '지식의 여정을 계속하세요',
+                      style: MujiTheme.mobileBody.copyWith(
+                        color: MujiTheme.textLight,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    
+                    const SizedBox(height: 40),
+                    
+                    // 에러 메시지
+                    if (_errorMessage != null) ...[
+                      _buildErrorMessage(),
+                      const SizedBox(height: 16),
+                    ],
+                    
+                    // 이메일 입력
+                    MujiTextField(
+                      controller: _emailController,
+                      label: '이메일',
+                      hint: 'your@email.com',
+                      keyboardType: TextInputType.emailAddress,
+                      prefixIcon: CupertinoIcons.mail,
+                      validator: (value) {
+                        if (value?.isEmpty ?? true) {
+                          return '이메일을 입력해주세요';
+                        }
+                        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value!)) {
+                          return '올바른 이메일 형식이 아닙니다';
+                        }
+                        return null;
+                      },
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // 비밀번호 입력
+                    MujiTextField(
+                      controller: _passwordController,
+                      label: '비밀번호',
+                      hint: '비밀번호를 입력하세요',
+                      obscureText: !_isPasswordVisible,
+                      prefixIcon: CupertinoIcons.lock,
+                      suffixIcon: GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _isPasswordVisible = !_isPasswordVisible;
+                          });
+                        },
+                        child: Icon(
+                          _isPasswordVisible 
+                              ? CupertinoIcons.eye_slash 
+                              : CupertinoIcons.eye,
+                          color: MujiTheme.textLight,
+                          size: 20,
+                        ),
+                      ),
+                      validator: (value) {
+                        if (value?.isEmpty ?? true) {
+                          return '비밀번호를 입력해주세요';
+                        }
+                        return null;
+                      },
+                    ),
+                    
+                    const SizedBox(height: 12),
+                    
+                    // 비밀번호 찾기
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: GestureDetector(
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          // TODO: 비밀번호 찾기
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('비밀번호 찾기 기능은 곧 출시됩니다!')),
+                          );
+                        },
+                        child: Text(
+                          '비밀번호를 잊으셨나요?',
+                          style: MujiTheme.mobileCaption.copyWith(
+                            color: MujiTheme.sage,
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 32),
+                    
+                    // 로그인 버튼
+                    MujiButton(
+                      text: '로그인',
+                      onPressed: _isLoading ? null : _handleLogin,
+                      isLoading: _isLoading,
+                      style: MujiButtonStyle.primary,
+                    ),
+                    
+                    const SizedBox(height: 24),
+                    
+                    // 또는 구분선
+                    _buildDivider(),
+                    
+                    const SizedBox(height: 24),
+                    
+                    // 소셜 로그인 버튼들
+                    _buildSocialLoginButtons(),
+                    
+                    const Spacer(),
+                    
+                    // 회원가입 안내
+                    _buildRegisterPrompt(),
+                    
+                    const SizedBox(height: 20),
+                  ],
                 ),
               ),
             ),
@@ -354,20 +356,24 @@ class _LoginScreenState extends State<LoginScreen>
     return Column(
       children: [
         _SocialLoginButton(
-          icon: 'assets/icons/google.svg',
+          icon: Icons.g_mobiledata, // Google 아이콘 대신 임시
           text: 'Google로 계속하기',
           onPressed: () {
-            // TODO: Google 로그인
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Google 로그인 기능은 곧 출시됩니다!')),
+            );
           },
         ),
         const SizedBox(height: 12),
         _SocialLoginButton(
-          icon: 'assets/icons/apple.svg',
+          icon: Icons.apple, // Apple 아이콘
           text: 'Apple로 계속하기',
           onPressed: () {
-            // TODO: Apple 로그인
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Apple 로그인 기능은 곧 출시됩니다!')),
+            );
           },
-          isDark: Theme.of(context).brightness == Brightness.dark,
+          isDark: true,
         ),
       ],
     );
@@ -408,7 +414,7 @@ class _LoginScreenState extends State<LoginScreen>
 
 /// 소셜 로그인 버튼
 class _SocialLoginButton extends StatelessWidget {
-  final String icon;
+  final IconData icon;
   final String text;
   final VoidCallback onPressed;
   final bool isDark;
@@ -432,23 +438,19 @@ class _SocialLoginButton extends StatelessWidget {
         height: 52,
         decoration: BoxDecoration(
           color: isDark ? MujiTheme.textDark : MujiTheme.surface,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(MujiTheme.radiusM),
           border: Border.all(
-            color: MujiTheme.textHint.withOpacity(0.2),
-            width: 0.5,
+            color: MujiTheme.border,
+            width: 1,
           ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // 아이콘은 실제로는 SVG를 사용
-            Container(
-              width: 20,
-              height: 20,
-              decoration: BoxDecoration(
-                color: MujiTheme.textLight.withOpacity(0.3),
-                shape: BoxShape.circle,
-              ),
+            Icon(
+              icon,
+              size: 20,
+              color: isDark ? Colors.white : MujiTheme.textDark,
             ),
             const SizedBox(width: 12),
             Text(

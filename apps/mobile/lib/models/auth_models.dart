@@ -1,4 +1,4 @@
-// apps/mobile/lib/models/auth_models.dart
+// lib/models/auth_models.dart
 
 import 'package:freezed_annotation/freezed_annotation.dart';
 
@@ -17,7 +17,14 @@ class User with _$User {
     Gender? gender,
   }) = _User;
 
-  factory User.fromJson(Map<String, dynamic> json) => _$UserFromJson(json);
+  factory User.fromJson(Map<String, dynamic> json) {
+    // ID가 숫자로 올 수 있으므로 문자열로 변환
+    final Map<String, dynamic> modifiedJson = Map.from(json);
+    if (modifiedJson['id'] is int) {
+      modifiedJson['id'] = modifiedJson['id'].toString();
+    }
+    return _$UserFromJson(modifiedJson);
+  }
 }
 
 /// 성별 열거형
@@ -77,5 +84,19 @@ class AuthResponse with _$AuthResponse {
     bool? emailVerificationSent,
   }) = _AuthResponse;
 
-  factory AuthResponse.fromJson(Map<String, dynamic> json) => _$AuthResponseFromJson(json);
+  factory AuthResponse.fromJson(Map<String, dynamic> json) {
+    // 중첩된 객체들도 처리
+    final Map<String, dynamic> modifiedJson = Map.from(json);
+    
+    // user 객체 내의 id 처리
+    if (modifiedJson['user'] is Map<String, dynamic>) {
+      final userJson = Map<String, dynamic>.from(modifiedJson['user']);
+      if (userJson['id'] is int) {
+        userJson['id'] = userJson['id'].toString();
+      }
+      modifiedJson['user'] = userJson;
+    }
+    
+    return _$AuthResponseFromJson(modifiedJson);
+  }
 }

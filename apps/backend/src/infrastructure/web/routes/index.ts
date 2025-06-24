@@ -1,13 +1,9 @@
-/**
- * routes/index.ts
- * 
- * API 라우트 집합
- * 모든 라우트를 하나로 모아서 export
- */
+// apps/backend/src/infrastructure/web/routes/index.ts
 
 import { Router } from 'express';
+import { container } from 'tsyringe';
 import { Logger } from '../../logging/logger';
-import { createAuthRoutes } from './auth.routes';  // 추가
+import { AuthController } from '../controllers/auth.controller';
 
 const logger = new Logger('Routes');
 
@@ -25,11 +21,51 @@ apiRouter.get('/', (req, res) => {
   });
 });
 
-// TODO: Day 3 - Auth routes
-// Auth routes - 함수로 감싸서 지연 실행
-apiRouter.use('/auth', (req, res, next) => {
-  return createAuthRoutes()(req, res, next);
-});
+/**
+ * Auth 라우트 설정
+ */
+function setupAuthRoutes(): Router {
+  const authController = container.resolve(AuthController);
+  const authRouter = Router();
+
+  // 회원가입
+  authRouter.post('/register', (req, res, next) => {
+    authController.router.handle(req, res, next);
+  });
+
+  // 로그인
+  authRouter.post('/login', (req, res, next) => {
+    authController.router.handle(req, res, next);
+  });
+
+  // 토큰 갱신
+  authRouter.post('/refresh', (req, res, next) => {
+    authController.router.handle(req, res, next);
+  });
+
+  // 로그아웃
+  authRouter.post('/logout', (req, res, next) => {
+    authController.router.handle(req, res, next);
+  });
+
+  // 이메일 인증
+  authRouter.get('/verify-email', (req, res, next) => {
+    authController.router.handle(req, res, next);
+  });
+
+  // 인증 메일 재발송
+  authRouter.post('/resend-verification', (req, res, next) => {
+    authController.router.handle(req, res, next);
+  });
+
+  return authRouter;
+}
+
+// Auth 라우트 등록
+apiRouter.use('/auth', setupAuthRoutes());
+
+logger.info('API routes initialized with Auth endpoints');
+
 // TODO: Day 4 - User routes  
 // apiRouter.use('/users', userRouter);
 
@@ -38,5 +74,3 @@ apiRouter.use('/auth', (req, res, next) => {
 
 // TODO: Day 5 - Category routes
 // apiRouter.use('/categories', categoryRouter);
-
-logger.info('API routes initialized');

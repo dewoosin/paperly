@@ -1,31 +1,41 @@
 // lib/config/api_config.dart
 
+import 'package:flutter/foundation.dart';
+
 /// API 설정 클래스
 /// 
 /// 서버 URL, 타임아웃 등 API 관련 설정을 관리합니다.
 class ApiConfig {
-  /// 기본 서버 URL
-  static const String baseUrl = 'http://localhost:3000/api/v1';
-  
   /// 개발 서버 URL
-  static const String devBaseUrl = 'http://localhost:3000/api/v1';
+  static const String _devBaseUrl = 'http://localhost:3000/api/v1';
+  
+  /// 웹용 개발 서버 URL (프록시 사용)
+  static const String _webDevBaseUrl = '/api/v1';
   
   /// 프로덕션 서버 URL
-  static const String prodBaseUrl = 'https://api.paperly.com/api/v1';
+  static const String _prodBaseUrl = 'https://api.paperly.com/api/v1';
   
   /// 현재 환경에 따른 서버 URL 반환
-  static String get currentBaseUrl {
-    // TODO: 환경에 따라 분기 처리
-    // const bool isProduction = bool.fromEnvironment('dart.vm.product');
-    // return isProduction ? prodBaseUrl : devBaseUrl;
-    return devBaseUrl;
+  static String get baseUrl {
+    // 프로덕션 환경 체크
+    if (kReleaseMode) {
+      return _prodBaseUrl;
+    }
+    
+    // 웹 환경에서는 프록시 사용
+    if (kIsWeb) {
+      return _webDevBaseUrl;
+    }
+    
+    // 모바일 개발 환경
+    return _devBaseUrl;
   }
   
   /// 연결 타임아웃 (초)
-  static const int connectTimeoutSeconds = 5;
+  static const int connectTimeoutSeconds = 10;
   
   /// 수신 타임아웃 (초)
-  static const int receiveTimeoutSeconds = 3;
+  static const int receiveTimeoutSeconds = 10;
   
   /// 요청 재시도 횟수
   static const int maxRetries = 3;
@@ -38,4 +48,16 @@ class ApiConfig {
   
   /// 기본 언어 코드
   static const String defaultLocale = 'ko';
+  
+  /// 디버그 정보 출력
+  static void printDebugInfo() {
+    if (kDebugMode) {
+      print('🌐 API Config:');
+      print('   - Base URL: $baseUrl');
+      print('   - Is Web: $kIsWeb');
+      print('   - Is Release: $kReleaseMode');
+      print('   - Connect Timeout: ${connectTimeoutSeconds}s');
+      print('   - Receive Timeout: ${receiveTimeoutSeconds}s');
+    }
+  }
 }
