@@ -11,7 +11,7 @@ import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
 import { config } from '../../config/env.config';
-import { morganStream } from '../../logging/Logger';
+import { morganStream } from '../../logging/logger';
 import { errorHandler } from './middlewares/error.middleware';
 import { notFoundHandler } from './middlewares/notFound.middleware';
 import { rateLimiter } from './middlewares/rateLimit.middleware';

@@ -6,7 +6,7 @@
  */
 
 import { Pool, PoolConfig, PoolClient } from 'pg';
-import { Logger } from '../logging/Logger';
+import { Logger } from '../logging/logger';
 import { BaseError, ErrorCode } from '../../shared/errors/BaseError';
 
 /**

@@ -5,7 +5,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { BaseError } from '../../../../shared/errors/BaseError';
-import { Logger } from '../../../logging/Logger';
+import { Logger } from '../../../logging/logger';
 
 const logger = new Logger('ErrorHandler');
 

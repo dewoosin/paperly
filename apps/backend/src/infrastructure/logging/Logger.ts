@@ -1,237 +1,175 @@
-/**
- * Logger.ts
- * 
- * Winston 기반의 엔터프라이즈급 로거
- * 환경별 로그 레벨, 포맷, 전송 방식을 다르게 설정
- */
+// /Users/workspace/paperly/apps/backend/src/infrastructure/logging/logger.ts
 
 import winston from 'winston';
-import DailyRotateFile from 'winston-daily-rotate-file';
-import { hostname } from 'os';
+import { config } from '../config/env.config';
 
 /**
- * 로그 레벨 정의
+ * Winston Logger 인스턴스
+ * 
+ * 구조화된 로깅을 제공합니다.
+ * 환경에 따라 다른 로그 레벨과 포맷을 사용합니다.
  */
+
+// 로그 레벨 정의
 const logLevels = {
   error: 0,
   warn: 1,
   info: 2,
   http: 3,
-  debug: 4,
+  verbose: 4,
+  debug: 5,
+  silly: 6
 };
 
-/**
- * 환경별 로그 레벨
- */
-const getLogLevel = (): string => {
-  const env = process.env.NODE_ENV || 'development';
-  return env === 'development' ? 'debug' : 'info';
+// 환경별 로그 레벨
+const level = (() => {
+  const env = config.NODE_ENV || 'development';
+  const isDevelopment = env === 'development';
+  return isDevelopment ? 'debug' : 'info';
+})();
+
+// 로그 색상 정의
+const colors = {
+  error: 'red',
+  warn: 'yellow',
+  info: 'green',
+  http: 'magenta',
+  verbose: 'cyan',
+  debug: 'blue',
+  silly: 'grey'
 };
 
-/**
- * 로그 포맷 정의
- */
-const logFormat = winston.format.combine(
+winston.addColors(colors);
+
+// 로그 포맷 정의
+const format = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss.SSS' }),
   winston.format.errors({ stack: true }),
-  winston.format.json(),
+  winston.format.splat(),
+  winston.format.json()
 );
 
-/**
- * 개발 환경용 컬러 포맷
- */
+// 개발 환경용 포맷
 const devFormat = winston.format.combine(
-  winston.format.colorize(),
   winston.format.timestamp({ format: 'HH:mm:ss.SSS' }),
-  winston.format.printf(({ timestamp, level, message, context, ...meta }) => {
-    const contextStr = context ? `[${context}]` : '';
-    const metaStr = Object.keys(meta).length ? JSON.stringify(meta, null, 2) : '';
-    return `${timestamp} ${level} ${contextStr} ${message} ${metaStr}`;
-  }),
+  winston.format.colorize({ all: true }),
+  winston.format.printf(
+    (info) => {
+      const { timestamp, level, message, context, ...extra } = info;
+      const contextStr = context ? ` [${context}]` : '';
+      const extraStr = Object.keys(extra).length ? ` ${JSON.stringify(extra, null, 2)}` : '';
+      return `${timestamp} ${level}${contextStr} ${message}${extraStr}`;
+    }
+  )
 );
 
-/**
- * 파일 로테이션 설정
- */
-const fileRotateTransport = new DailyRotateFile({
-  filename: 'logs/paperly-%DATE%.log',
-  datePattern: 'YYYY-MM-DD',
-  zippedArchive: true,
-  maxSize: '20m',
-  maxFiles: '14d',
-  format: logFormat,
-});
+// 트랜스포트 정의
+const transports = [
+  // 콘솔 출력
+  new winston.transports.Console({
+    format: config.NODE_ENV === 'development' ? devFormat : format,
+  })
+];
 
-/**
- * 에러 전용 파일 로테이션
- */
-const errorFileTransport = new DailyRotateFile({
-  filename: 'logs/paperly-error-%DATE%.log',
-  datePattern: 'YYYY-MM-DD',
-  zippedArchive: true,
-  maxSize: '20m',
-  maxFiles: '30d',
-  level: 'error',
-  format: logFormat,
-});
-
-/**
- * Winston 로거 인스턴스 생성
- */
-const winstonLogger = winston.createLogger({
-  levels: logLevels,
-  level: getLogLevel(),
-  format: logFormat,
-  defaultMeta: {
-    service: 'paperly-backend',
-    hostname: hostname(),
-    pid: process.pid,
-  },
-  transports: [
-    // 프로덕션 환경에서는 파일로 저장
-    ...(process.env.NODE_ENV === 'production' ? [
-      fileRotateTransport,
-      errorFileTransport,
-    ] : []),
-  ],
-});
-
-/**
- * 개발 환경에서는 콘솔 출력 추가
- */
-if (process.env.NODE_ENV !== 'production') {
-  winstonLogger.add(new winston.transports.Console({
-    format: devFormat,
-  }));
+// 프로덕션 환경에서는 파일로도 저장
+if (config.NODE_ENV === 'production') {
+  transports.push(
+    // 에러 로그 파일
+    new winston.transports.File({
+      filename: 'logs/error.log',
+      level: 'error',
+      maxsize: 10485760, // 10MB
+      maxFiles: 5,
+    }),
+    // 전체 로그 파일
+    new winston.transports.File({
+      filename: 'logs/combined.log',
+      maxsize: 10485760, // 10MB
+      maxFiles: 5,
+    })
+  );
 }
 
+// Winston logger 인스턴스 생성
+const winstonLogger = winston.createLogger({
+  level,
+  levels: logLevels,
+  format,
+  transports,
+  exitOnError: false, // 로깅 에러 시 프로세스 종료 방지
+});
+
 /**
- * 로거 클래스
- * 컨텍스트별로 로거 인스턴스를 생성하여 사용
+ * 커스텀 Logger 클래스
  * 
- * @example
- * const logger = new Logger('UserService');
- * logger.info('User created', { userId: 123 });
+ * 컨텍스트 정보를 추가로 포함할 수 있는 래퍼
  */
 export class Logger {
-  private context: string;
-  private logger: winston.Logger;
+  private context?: string;
 
-  constructor(context: string) {
+  constructor(context?: string) {
     this.context = context;
-    this.logger = winstonLogger;
   }
 
-  /**
-   * 에러 로그
-   */
-  error(message: string, error?: any, meta?: any): void {
-    this.logger.error(message, {
+  private log(level: string, message: string, meta?: any) {
+    const logData = {
+      service: 'paperly-backend',
+      hostname: require('os').hostname(),
+      pid: process.pid,
       context: this.context,
-      error: this.serializeError(error),
-      ...meta,
-    });
+      ...meta
+    };
+
+    winstonLogger.log(level, message, logData);
   }
 
-  /**
-   * 경고 로그
-   */
-  warn(message: string, meta?: any): void {
-    this.logger.warn(message, {
-      context: this.context,
-      ...meta,
-    });
-  }
-
-  /**
-   * 정보 로그
-   */
-  info(message: string, meta?: any): void {
-    this.logger.info(message, {
-      context: this.context,
-      ...meta,
-    });
-  }
-
-  /**
-   * HTTP 요청 로그
-   */
-  http(message: string, meta?: any): void {
-    this.logger.http(message, {
-      context: this.context,
-      ...meta,
-    });
-  }
-
-  /**
-   * 디버그 로그
-   */
-  debug(message: string, meta?: any): void {
-    this.logger.debug(message, {
-      context: this.context,
-      ...meta,
-    });
-  }
-
-  /**
-   * 성능 측정 로그
-   */
-  performance(operation: string, duration: number, meta?: any): void {
-    const level = duration > 1000 ? 'warn' : 'info';
-    this.logger.log(level, `Performance: ${operation}`, {
-      context: this.context,
-      duration,
-      durationPretty: `${duration}ms`,
-      ...meta,
-    });
-  }
-
-  /**
-   * 에러 객체 직렬화
-   */
-  private serializeError(error: any): any {
-    if (!error) return null;
-    
-    if (error instanceof Error) {
-      return {
+  error(message: string, error?: Error | any, meta?: any) {
+    const errorMeta = error instanceof Error ? {
+      error: {
         name: error.name,
         message: error.message,
-        stack: error.stack,
-        ...error,
-      };
-    }
-    
-    return error;
+        stack: error.stack
+      }
+    } : error;
+
+    this.log('error', message, { ...errorMeta, ...meta });
+  }
+
+  warn(message: string, meta?: any) {
+    this.log('warn', message, meta);
+  }
+
+  info(message: string, meta?: any) {
+    this.log('info', message, meta);
+  }
+
+  http(message: string, meta?: any) {
+    this.log('http', message, meta);
+  }
+
+  verbose(message: string, meta?: any) {
+    this.log('verbose', message, meta);
+  }
+
+  debug(message: string, meta?: any) {
+    this.log('debug', message, meta);
   }
 
   /**
-   * 자식 로거 생성
+   * 자식 로거 생성 (컨텍스트 상속)
    */
-  child(subContext: string): Logger {
-    return new Logger(`${this.context}:${subContext}`);
+  child(context: string): Logger {
+    const childContext = this.context ? `${this.context}:${context}` : context;
+    return new Logger(childContext);
   }
 }
 
-/**
- * Express 미들웨어용 HTTP 로거
- */
-export const httpLogger = winston.createLogger({
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json(),
-  ),
-  transports: [
-    new winston.transports.Console({
-      format: process.env.NODE_ENV === 'production' ? logFormat : devFormat,
-    }),
-  ],
-});
+// 기본 logger 인스턴스
+export const logger = new Logger();
 
-/**
- * Morgan 스트림 어댑터
- */
+// Morgan HTTP 로깅용 스트림
 export const morganStream = {
   write: (message: string) => {
-    httpLogger.info(message.trim());
-  },
+    logger.http(message.trim());
+  }
 };

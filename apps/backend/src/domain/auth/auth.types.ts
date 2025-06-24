@@ -1,104 +1,107 @@
-// apps/backend/src/domain/auth/auth.types.ts
-
-import { z } from 'zod';
+// /Users/workspace/paperly/apps/backend/src/domain/auth/auth.types.ts
 
 /**
- * 성별 열거형
+ * 인증 관련 타입 정의
+ */
+
+/**
+ * 성별 enum
  */
 export enum Gender {
   MALE = 'male',
   FEMALE = 'female',
   OTHER = 'other',
-  PREFER_NOT_TO_SAY = 'prefer_not_to_say',
+  PREFER_NOT_TO_SAY = 'prefer_not_to_say'
 }
 
 /**
- * 회원가입 요청 스키마
+ * 회원가입 요청 DTO
  */
-export const RegisterRequestSchema = z.object({
-  email: z.string().email('올바른 이메일 형식이 아닙니다'),
-  password: z.string().min(8, '비밀번호는 최소 8자 이상이어야 합니다'),
-  name: z.string().min(1, '이름을 입력해주세요').max(50, '이름은 50자 이하여야 합니다'),
-  birthDate: z.string().datetime({ message: '올바른 날짜 형식이 아닙니다' }),
-  gender: z.nativeEnum(Gender).optional(),
-});
-
-export type RegisterRequest = z.infer<typeof RegisterRequestSchema>;
+export interface RegisterRequest {
+  email: string;
+  password: string;
+  name: string;
+  birthDate: string; // ISO 8601 형식
+  gender?: Gender;
+}
 
 /**
- * 로그인 요청 스키마
+ * 로그인 요청 DTO
  */
-export const LoginRequestSchema = z.object({
-  email: z.string().email('올바른 이메일 형식이 아닙니다'),
-  password: z.string().min(1, '비밀번호를 입력해주세요'),
-});
-
-export type LoginRequest = z.infer<typeof LoginRequestSchema>;
+export interface LoginRequest {
+  email: string;
+  password: string;
+  deviceInfo?: DeviceInfo;
+}
 
 /**
- * 토큰 갱신 요청 스키마
+ * 토큰 갱신 요청 DTO
  */
-export const RefreshTokenRequestSchema = z.object({
-  refreshToken: z.string().min(1, 'Refresh token을 입력해주세요'),
-});
-
-export type RefreshTokenRequest = z.infer<typeof RefreshTokenRequestSchema>;
+export interface RefreshTokenRequest {
+  refreshToken: string;
+}
 
 /**
- * 로그아웃 요청 스키마
+ * 디바이스 정보
  */
-export const LogoutRequestSchema = z.object({
-  refreshToken: z.string().optional(),
-  allDevices: z.boolean().default(false),
-});
-
-export type LogoutRequest = z.infer<typeof LogoutRequestSchema>;
+export interface DeviceInfo {
+  deviceId?: string;
+  userAgent?: string;
+  ipAddress?: string;
+}
 
 /**
- * 이메일 인증 토큰 검증 스키마
+ * 인증 응답 DTO
  */
-export const VerifyEmailRequestSchema = z.object({
-  token: z.string().min(1, '인증 토큰을 입력해주세요'),
-});
-
-export type VerifyEmailRequest = z.infer<typeof VerifyEmailRequestSchema>;
+export interface AuthResponse {
+  user: UserInfo;
+  tokens: TokenPair;
+  emailVerificationSent?: boolean;
+}
 
 /**
- * 인증 토큰 응답
+ * 사용자 정보 DTO
  */
-export interface AuthTokens {
+export interface UserInfo {
+  id: string;
+  email: string;
+  name: string;
+  emailVerified: boolean;
+  birthDate: Date;
+  gender?: Gender;
+}
+
+/**
+ * 토큰 쌍
+ */
+export interface TokenPair {
   accessToken: string;
   refreshToken: string;
 }
 
 /**
- * 인증 응답
+ * JWT 페이로드
  */
-export interface AuthResponse {
-  user: {
-    id: string;
-    email: string;
-    name: string;
-    emailVerified: boolean;
-    birthDate?: Date;
-    gender?: Gender;
-  };
-  tokens: AuthTokens;
-  emailVerificationSent?: boolean;
+export interface JwtPayload {
+  userId: string;
+  email: string;
+  type: 'access' | 'refresh';
+  iat?: number;
+  exp?: number;
 }
 
 /**
- * Refresh Token 저장 모델
+ * 리프레시 토큰 DB 저장 모델
  */
 export interface RefreshTokenModel {
   id: string;
   userId: string;
   token: string;
+  expiresAt: Date;
+  createdAt: Date;
   deviceId?: string;
   userAgent?: string;
   ipAddress?: string;
-  expiresAt: Date;
-  createdAt: Date;
 }
 
 /**
@@ -110,4 +113,61 @@ export interface EmailVerificationToken {
   token: string;
   expiresAt: Date;
   createdAt: Date;
+}
+
+/**
+ * 비밀번호 재설정 토큰 모델
+ */
+export interface PasswordResetToken {
+  id: string;
+  userId: string;
+  token: string;
+  expiresAt: Date;
+  createdAt: Date;
+  usedAt?: Date;
+}
+
+/**
+ * 로그인 시도 기록
+ */
+export interface LoginAttempt {
+  id: string;
+  email: string;
+  success: boolean;
+  ipAddress?: string;
+  userAgent?: string;
+  attemptedAt: Date;
+}
+
+/**
+ * 사용자 세션
+ */
+export interface UserSession {
+  id: string;
+  userId: string;
+  refreshToken: string;
+  deviceInfo?: DeviceInfo;
+  lastActiveAt: Date;
+  createdAt: Date;
+}
+
+/**
+ * 인증 컨텍스트
+ */
+export interface AuthContext {
+  userId: string;
+  email: string;
+  emailVerified: boolean;
+  roles?: string[];
+  permissions?: string[];
+}
+
+/**
+ * 인증 요청 헤더
+ */
+export interface AuthHeaders {
+  authorization?: string;
+  'x-refresh-token'?: string;
+  'x-device-id'?: string;
+  'x-client-version'?: string;
 }

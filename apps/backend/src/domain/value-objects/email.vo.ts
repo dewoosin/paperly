@@ -1,0 +1,84 @@
+// /Users/workspace/paperly/apps/backend/src/domain/value-objects/email.vo.ts
+
+import { z } from 'zod';
+import { BadRequestError } from '../../shared/errors';
+
+/**
+ * Email Value Object
+ * 
+ * 이메일 주소를 나타내는 불변 객체
+ * 유효성 검증 로직을 포함합니다.
+ */
+export class Email {
+  private readonly value: string;
+
+  /**
+   * 이메일 검증 스키마
+   */
+  private static readonly schema = z
+    .string()
+    .email('올바른 이메일 형식이 아닙니다')
+    .toLowerCase()
+    .max(255, '이메일은 255자를 초과할 수 없습니다');
+
+  /**
+   * private 생성자 - create 메서드를 통해서만 생성 가능
+   */
+  private constructor(email: string) {
+    this.value = email.toLowerCase().trim();
+  }
+
+  /**
+   * 이메일 인스턴스 생성
+   * 
+   * @param email - 이메일 문자열
+   * @returns Email 인스턴스
+   * @throws BadRequestError - 유효하지 않은 이메일인 경우
+   */
+  static create(email: string): Email {
+    try {
+      const validatedEmail = this.schema.parse(email.trim());
+      return new Email(validatedEmail);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        throw new BadRequestError(error.errors[0].message);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * 문자열로 변환
+   */
+  toString(): string {
+    return this.value;
+  }
+
+  /**
+   * 값 getter
+   */
+  getValue(): string {
+    return this.value;
+  }
+
+  /**
+   * 동일성 비교
+   */
+  equals(other: Email): boolean {
+    return this.value === other.value;
+  }
+
+  /**
+   * 도메인 추출
+   */
+  getDomain(): string {
+    return this.value.split('@')[1];
+  }
+
+  /**
+   * 로컬 파트 추출
+   */
+  getLocalPart(): string {
+    return this.value.split('@')[0];
+  }
+}

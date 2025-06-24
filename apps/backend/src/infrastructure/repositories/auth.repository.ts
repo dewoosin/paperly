@@ -1,26 +1,25 @@
-// apps/backend/src/infrastructure/repositories/auth.repository.ts
+// /Users/workspace/paperly/apps/backend/src/infrastructure/repositories/auth.repository.ts
 
-import { Pool } from 'pg';
-import crypto from 'crypto';
-import { db } from '../database/connection';
-import { RefreshTokenModel, EmailVerificationToken } from '../../domain/auth/auth.types';
+import { v4 as uuidv4 } from 'uuid';
+import { db } from '../config/database.config';
 import { DatabaseError } from '../../shared/errors';
 import { logger } from '../logging/logger';
+import { 
+  RefreshTokenModel, 
+  EmailVerificationToken, 
+  PasswordResetToken 
+} from '../../domain/auth/auth.types';
 
 /**
- * 인증 관련 데이터베이스 작업을 담당하는 레포지토리
+ * 인증 관련 레포지토리
+ * 
+ * 토큰 관리, 인증 관련 데이터 처리를 담당합니다.
  */
 export class AuthRepository {
+  private static readonly logger = new Logger('AuthRepository');
+
   /**
    * Refresh Token 저장
-   * 
-   * @param userId - 사용자 ID
-   * @param token - Refresh Token
-   * @param deviceId - 디바이스 ID (선택)
-   * @param userAgent - User Agent (선택)
-   * @param ipAddress - IP 주소 (선택)
-   * @param expiresAt - 만료 시간
-   * @returns 저장된 토큰 정보
    */
   static async saveRefreshToken(
     userId: string,
@@ -29,41 +28,19 @@ export class AuthRepository {
     deviceId?: string,
     userAgent?: string,
     ipAddress?: string
-  ): Promise<RefreshTokenModel> {
+  ): Promise<void> {
     const client = await db.getClient();
     try {
-      // 먼저 refresh_tokens 테이블이 없으면 생성
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS refresh_tokens (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          token TEXT NOT NULL UNIQUE,
-          device_id TEXT,
-          user_agent TEXT,
-          ip_address TEXT,
-          expires_at TIMESTAMPTZ NOT NULL,
-          created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-          CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        );
-        
-        CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id);
-        CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token);
-        CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires_at ON refresh_tokens(expires_at);
-      `);
-
-      const result = await client.query<RefreshTokenModel>(
-        `INSERT INTO refresh_tokens 
-         (user_id, token, device_id, user_agent, ip_address, expires_at)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING *`,
-        [userId, token, deviceId, userAgent, ipAddress, expiresAt]
+      await client.query(
+        `INSERT INTO refresh_tokens (id, user_id, token, expires_at, device_id, user_agent, ip_address, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+        [uuidv4(), userId, token, expiresAt, deviceId, userAgent, ipAddress]
       );
-
-      logger.info('Refresh token saved', { userId, deviceId });
-      return this.mapToRefreshTokenModel(result.rows[0]);
+      
+      this.logger.debug('Refresh token saved', { userId, deviceId });
     } catch (error) {
-      logger.error('Failed to save refresh token:', error);
-      throw new DatabaseError('Failed to save refresh token');
+      this.logger.error('Failed to save refresh token', error);
+      throw new DatabaseError('토큰 저장에 실패했습니다');
     } finally {
       client.release();
     }
@@ -71,16 +48,14 @@ export class AuthRepository {
 
   /**
    * Refresh Token 조회
-   * 
-   * @param token - 토큰 값
-   * @returns 토큰 정보 또는 null
    */
   static async findRefreshToken(token: string): Promise<RefreshTokenModel | null> {
     const client = await db.getClient();
     try {
-      const result = await client.query<RefreshTokenModel>(
-        `SELECT * FROM refresh_tokens 
-         WHERE token = $1 AND expires_at > CURRENT_TIMESTAMP`,
+      const result = await client.query(
+        `SELECT id, user_id, token, expires_at, created_at, device_id, user_agent, ip_address
+         FROM refresh_tokens
+         WHERE token = $1 AND expires_at > NOW()`,
         [token]
       );
 
@@ -88,10 +63,20 @@ export class AuthRepository {
         return null;
       }
 
-      return this.mapToRefreshTokenModel(result.rows[0]);
+      const row = result.rows[0];
+      return {
+        id: row.id,
+        userId: row.user_id,
+        token: row.token,
+        expiresAt: row.expires_at,
+        createdAt: row.created_at,
+        deviceId: row.device_id,
+        userAgent: row.user_agent,
+        ipAddress: row.ip_address,
+      };
     } catch (error) {
-      logger.error('Failed to find refresh token:', error);
-      throw new DatabaseError('Failed to find refresh token');
+      this.logger.error('Failed to find refresh token', error);
+      throw new DatabaseError('토큰 조회에 실패했습니다');
     } finally {
       client.release();
     }
@@ -99,8 +84,6 @@ export class AuthRepository {
 
   /**
    * Refresh Token 삭제
-   * 
-   * @param token - 삭제할 토큰
    */
   static async deleteRefreshToken(token: string): Promise<void> {
     const client = await db.getClient();
@@ -109,10 +92,11 @@ export class AuthRepository {
         'DELETE FROM refresh_tokens WHERE token = $1',
         [token]
       );
-      logger.info('Refresh token deleted');
+      
+      this.logger.debug('Refresh token deleted');
     } catch (error) {
-      logger.error('Failed to delete refresh token:', error);
-      throw new DatabaseError('Failed to delete refresh token');
+      this.logger.error('Failed to delete refresh token', error);
+      throw new DatabaseError('토큰 삭제에 실패했습니다');
     } finally {
       client.release();
     }
@@ -120,8 +104,6 @@ export class AuthRepository {
 
   /**
    * 사용자의 모든 Refresh Token 삭제
-   * 
-   * @param userId - 사용자 ID
    */
   static async deleteAllUserRefreshTokens(userId: string): Promise<void> {
     const client = await db.getClient();
@@ -130,89 +112,66 @@ export class AuthRepository {
         'DELETE FROM refresh_tokens WHERE user_id = $1',
         [userId]
       );
-      logger.info('All user refresh tokens deleted', { 
+      
+      this.logger.info('All user refresh tokens deleted', { 
         userId, 
         count: result.rowCount 
       });
     } catch (error) {
-      logger.error('Failed to delete user refresh tokens:', error);
-      throw new DatabaseError('Failed to delete user refresh tokens');
+      this.logger.error('Failed to delete user refresh tokens', error);
+      throw new DatabaseError('사용자 토큰 삭제에 실패했습니다');
     } finally {
       client.release();
     }
   }
 
   /**
-   * 만료된 Refresh Token 정리
+   * 만료된 토큰 정리
    */
   static async cleanupExpiredTokens(): Promise<number> {
     const client = await db.getClient();
     try {
       const result = await client.query(
-        'DELETE FROM refresh_tokens WHERE expires_at < CURRENT_TIMESTAMP'
+        'DELETE FROM refresh_tokens WHERE expires_at < NOW()'
       );
-      const deletedCount = result.rowCount || 0;
       
-      if (deletedCount > 0) {
-        logger.info('Expired refresh tokens cleaned up', { count: deletedCount });
-      }
-      
-      return deletedCount;
+      this.logger.info('Expired tokens cleaned up', { count: result.rowCount });
+      return result.rowCount || 0;
     } catch (error) {
-      logger.error('Failed to cleanup expired tokens:', error);
-      throw new DatabaseError('Failed to cleanup expired tokens');
+      this.logger.error('Failed to cleanup expired tokens', error);
+      throw new DatabaseError('만료 토큰 정리에 실패했습니다');
     } finally {
       client.release();
     }
   }
 
   /**
-   * 이메일 인증 토큰 생성 및 저장
-   * 
-   * @param userId - 사용자 ID
-   * @returns 생성된 토큰 정보
+   * 이메일 인증 토큰 생성
    */
   static async createEmailVerificationToken(userId: string): Promise<EmailVerificationToken> {
     const client = await db.getClient();
     try {
-      // 테이블이 없으면 생성
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS email_verification_tokens (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          token TEXT NOT NULL UNIQUE,
-          expires_at TIMESTAMPTZ NOT NULL,
-          created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-          CONSTRAINT fk_user_verification FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        );
-        
-        CREATE INDEX IF NOT EXISTS idx_email_verification_user_id ON email_verification_tokens(user_id);
-        CREATE INDEX IF NOT EXISTS idx_email_verification_token ON email_verification_tokens(token);
-      `);
+      const token = uuidv4();
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24시간
 
-      // 기존 토큰 삭제
-      await client.query(
-        'DELETE FROM email_verification_tokens WHERE user_id = $1',
-        [userId]
+      const result = await client.query(
+        `INSERT INTO email_verification_tokens (id, user_id, token, expires_at, created_at)
+         VALUES ($1, $2, $3, $4, NOW())
+         RETURNING id, user_id, token, expires_at, created_at`,
+        [uuidv4(), userId, token, expiresAt]
       );
 
-      // 새 토큰 생성
-      const token = crypto.randomBytes(32).toString('hex');
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24시간 후 만료
-
-      const result = await client.query<EmailVerificationToken>(
-        `INSERT INTO email_verification_tokens 
-         (user_id, token, expires_at)
-         VALUES ($1, $2, $3)
-         RETURNING *`,
-        [userId, token, expiresAt]
-      );
-
-      logger.info('Email verification token created', { userId });
-      return this.mapToEmailVerificationToken(result.rows[0]);
+      const row = result.rows[0];
+      return {
+        id: row.id,
+        userId: row.user_id,
+        token: row.token,
+        expiresAt: row.expires_at,
+        createdAt: row.created_at,
+      };
     } catch (error) {
-      logger.error('Failed to create email verification token:', error);
-      throw new DatabaseError('Failed to create email verification token');
+      this.logger.error('Failed to create email verification token', error);
+      throw new DatabaseError('이메일 인증 토큰 생성에 실패했습니다');
     } finally {
       client.release();
     }
@@ -220,16 +179,14 @@ export class AuthRepository {
 
   /**
    * 이메일 인증 토큰 조회
-   * 
-   * @param token - 토큰 값
-   * @returns 토큰 정보 또는 null
    */
   static async findEmailVerificationToken(token: string): Promise<EmailVerificationToken | null> {
     const client = await db.getClient();
     try {
-      const result = await client.query<EmailVerificationToken>(
-        `SELECT * FROM email_verification_tokens 
-         WHERE token = $1 AND expires_at > CURRENT_TIMESTAMP`,
+      const result = await client.query(
+        `SELECT id, user_id, token, expires_at, created_at
+         FROM email_verification_tokens
+         WHERE token = $1 AND expires_at > NOW()`,
         [token]
       );
 
@@ -237,10 +194,17 @@ export class AuthRepository {
         return null;
       }
 
-      return this.mapToEmailVerificationToken(result.rows[0]);
+      const row = result.rows[0];
+      return {
+        id: row.id,
+        userId: row.user_id,
+        token: row.token,
+        expiresAt: row.expires_at,
+        createdAt: row.created_at,
+      };
     } catch (error) {
-      logger.error('Failed to find email verification token:', error);
-      throw new DatabaseError('Failed to find email verification token');
+      this.logger.error('Failed to find email verification token', error);
+      throw new DatabaseError('이메일 인증 토큰 조회에 실패했습니다');
     } finally {
       client.release();
     }
@@ -248,8 +212,6 @@ export class AuthRepository {
 
   /**
    * 이메일 인증 토큰 삭제
-   * 
-   * @param token - 삭제할 토큰
    */
   static async deleteEmailVerificationToken(token: string): Promise<void> {
     const client = await db.getClient();
@@ -258,41 +220,14 @@ export class AuthRepository {
         'DELETE FROM email_verification_tokens WHERE token = $1',
         [token]
       );
-      logger.info('Email verification token deleted');
     } catch (error) {
-      logger.error('Failed to delete email verification token:', error);
-      throw new DatabaseError('Failed to delete email verification token');
+      this.logger.error('Failed to delete email verification token', error);
+      throw new DatabaseError('이메일 인증 토큰 삭제에 실패했습니다');
     } finally {
       client.release();
     }
   }
-
-  /**
-   * DB 결과를 RefreshTokenModel로 매핑
-   */
-  private static mapToRefreshTokenModel(row: any): RefreshTokenModel {
-    return {
-      id: row.id,
-      userId: row.user_id,
-      token: row.token,
-      deviceId: row.device_id,
-      userAgent: row.user_agent,
-      ipAddress: row.ip_address,
-      expiresAt: row.expires_at,
-      createdAt: row.created_at,
-    };
-  }
-
-  /**
-   * DB 결과를 EmailVerificationToken으로 매핑
-   */
-  private static mapToEmailVerificationToken(row: any): EmailVerificationToken {
-    return {
-      id: row.id,
-      userId: row.user_id,
-      token: row.token,
-      expiresAt: row.expires_at,
-      createdAt: row.created_at,
-    };
-  }
 }
+
+// Logger import 수정
+import { Logger } from '../logging/Logger';

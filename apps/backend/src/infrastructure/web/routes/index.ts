@@ -6,7 +6,7 @@
  */
 
 import { Router } from 'express';
-import { Logger } from '../../logging/Logger';
+import { Logger } from '../../logging/logger';
 
 const logger = new Logger('Routes');
 

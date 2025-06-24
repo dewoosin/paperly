@@ -7,7 +7,7 @@
 
 import { z } from 'zod';
 import dotenv from 'dotenv';
-import { Logger } from '../logging/Logger';
+import { Logger } from '../logging/logger';
 
 // 환경별 .env 파일 로드
 dotenv.config({

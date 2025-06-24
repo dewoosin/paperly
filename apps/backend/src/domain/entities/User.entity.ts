@@ -1,300 +1,196 @@
+// /Users/workspace/paperly/apps/backend/src/domain/entities/user.entity.ts
+
+import { Email } from '../value-objects/email.vo';
+import { Password } from '../value-objects/password.vo';
+import { UserId } from '../value-objects/user-id.vo';
+import { Gender } from '../auth/auth.types';
+
 /**
- * User.entity.ts
+ * User Entity
  * 
  * 사용자 도메인 엔티티
- * DDD 원칙에 따라 비즈니스 로직을 엔티티에 포함
- */
-
-import bcrypt from 'bcrypt';
-import { BusinessRuleError } from '../../shared/errors/BaseError';
-import { Email } from '../value-objects/Email';
-import { Password } from '../value-objects/Password';
-import { UserId } from '../value-objects/UserId';
-
-/**
- * 사용자 상태
- */
-export enum UserStatus {
-  PENDING = 'PENDING',      // 이메일 인증 대기
-  ACTIVE = 'ACTIVE',        // 활성 사용자
-  SUSPENDED = 'SUSPENDED',  // 정지된 사용자
-  DELETED = 'DELETED',      // 삭제된 사용자
-}
-
-/**
- * 사용자 역할
- */
-export enum UserRole {
-  USER = 'USER',
-  ADMIN = 'ADMIN',
-  AUTHOR = 'AUTHOR',
-}
-
-/**
- * 사용자 생성 매개변수
- */
-export interface CreateUserParams {
-  email: string;
-  password: string;
-  username?: string;
-  fullName?: string;
-}
-
-/**
- * 사용자 엔티티 속성
- */
-export interface UserProps {
-  id: UserId;
-  email: Email;
-  passwordHash: string;
-  username?: string;
-  fullName?: string;
-  profileImageUrl?: string;
-  bio?: string;
-  status: UserStatus;
-  role: UserRole;
-  emailVerified: boolean;
-  emailVerificationToken?: string;
-  emailVerificationExpiresAt?: Date;
-  lastLoginAt?: Date;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-/**
- * 사용자 도메인 엔티티
- * 
- * @example
- * const user = await User.create({
- *   email: 'user@example.com',
- *   password: 'SecurePassword123!',
- *   username: 'johndoe',
- *   fullName: 'John Doe'
- * });
+ * 비즈니스 로직과 불변성을 보장합니다.
  */
 export class User {
-  private readonly props: UserProps;
+  private readonly _id: UserId;
+  private readonly _email: Email;
+  private readonly _password: Password;
+  private _name: string;
+  private _emailVerified: boolean;
+  private readonly _birthDate: Date;
+  private readonly _gender?: Gender;
+  private readonly _createdAt: Date;
+  private _updatedAt: Date;
 
   /**
-   * private 생성자 - 팩토리 메서드를 통해서만 생성 가능
+   * 생성자
+   * 
+   * @param id - 사용자 ID
+   * @param email - 이메일
+   * @param password - 비밀번호 (해시된 상태)
+   * @param name - 이름
+   * @param emailVerified - 이메일 인증 여부
+   * @param birthDate - 생년월일
+   * @param gender - 성별 (선택적)
+   * @param createdAt - 생성일시
+   * @param updatedAt - 수정일시
    */
-  private constructor(props: UserProps) {
-    this.props = props;
+  constructor(
+    id: UserId,
+    email: Email,
+    password: Password,
+    name: string,
+    emailVerified: boolean,
+    birthDate: Date,
+    gender?: Gender,
+    createdAt?: Date,
+    updatedAt?: Date
+  ) {
+    this._id = id;
+    this._email = email;
+    this._password = password;
+    this._name = name;
+    this._emailVerified = emailVerified;
+    this._birthDate = birthDate;
+    this._gender = gender;
+    this._createdAt = createdAt || new Date();
+    this._updatedAt = updatedAt || new Date();
   }
 
   /**
-   * 새 사용자 생성 (팩토리 메서드)
+   * 새로운 사용자 생성 (팩토리 메서드)
    */
-  public static async create(params: CreateUserParams): Promise<User> {
-    // 이메일 검증
-    const email = Email.create(params.email);
-    
-    // 비밀번호 검증
-    const password = Password.create(params.password);
-    
-    // 비밀번호 해싱
-    const passwordHash = await password.hash();
-    
-    // 사용자명 검증
-    if (params.username) {
-      this.validateUsername(params.username);
-    }
-    
-    // 엔티티 생성
-    return new User({
-      id: UserId.generate(),
-      email,
-      passwordHash,
-      username: params.username,
-      fullName: params.fullName,
-      status: UserStatus.PENDING,
-      role: UserRole.USER,
-      emailVerified: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
+  static create(params: {
+    email: Email;
+    password: Password;
+    name: string;
+    birthDate: Date;
+    gender?: Gender;
+  }): User {
+    return new User(
+      UserId.generate(),
+      params.email,
+      params.password,
+      params.name,
+      false, // 신규 사용자는 이메일 미인증 상태
+      params.birthDate,
+      params.gender
+    );
   }
 
   /**
-   * 기존 데이터로부터 엔티티 재구성
+   * DB 데이터로부터 재구성 (팩토리 메서드)
    */
-  public static fromPersistence(props: UserProps): User {
-    return new User(props);
-  }
-
-  /**
-   * 사용자명 유효성 검증
-   */
-  private static validateUsername(username: string): void {
-    if (username.length < 3 || username.length > 20) {
-      throw new BusinessRuleError('Username must be between 3 and 20 characters');
-    }
-    
-    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-      throw new BusinessRuleError('Username can only contain letters, numbers, and underscores');
-    }
-  }
-
-  /**
-   * 비밀번호 검증
-   */
-  public async verifyPassword(password: string): Promise<boolean> {
-    return bcrypt.compare(password, this.props.passwordHash);
-  }
-
-  /**
-   * 비밀번호 변경
-   */
-  public async changePassword(currentPassword: string, newPassword: string): Promise<void> {
-    // 현재 비밀번호 확인
-    const isValid = await this.verifyPassword(currentPassword);
-    if (!isValid) {
-      throw new BusinessRuleError('Current password is incorrect');
-    }
-    
-    // 새 비밀번호 검증 및 해싱
-    const password = Password.create(newPassword);
-    this.props.passwordHash = await password.hash();
-    this.updateTimestamp();
-  }
-
-  /**
-   * 이메일 인증 토큰 생성
-   */
-  public generateEmailVerificationToken(): string {
-    const token = this.generateSecureToken();
-    this.props.emailVerificationToken = token;
-    this.props.emailVerificationExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24시간
-    this.updateTimestamp();
-    return token;
-  }
-
-  /**
-   * 이메일 인증
-   */
-  public verifyEmail(token: string): void {
-    if (!this.props.emailVerificationToken || this.props.emailVerificationToken !== token) {
-      throw new BusinessRuleError('Invalid verification token');
-    }
-    
-    if (this.props.emailVerificationExpiresAt && this.props.emailVerificationExpiresAt < new Date()) {
-      throw new BusinessRuleError('Verification token has expired');
-    }
-    
-    this.props.emailVerified = true;
-    this.props.status = UserStatus.ACTIVE;
-    this.props.emailVerificationToken = undefined;
-    this.props.emailVerificationExpiresAt = undefined;
-    this.updateTimestamp();
-  }
-
-  /**
-   * 프로필 업데이트
-   */
-  public updateProfile(updates: {
-    username?: string;
-    fullName?: string;
-    bio?: string;
-    profileImageUrl?: string;
-  }): void {
-    if (updates.username) {
-      User.validateUsername(updates.username);
-      this.props.username = updates.username;
-    }
-    
-    if (updates.fullName !== undefined) {
-      this.props.fullName = updates.fullName;
-    }
-    
-    if (updates.bio !== undefined) {
-      this.props.bio = updates.bio;
-    }
-    
-    if (updates.profileImageUrl !== undefined) {
-      this.props.profileImageUrl = updates.profileImageUrl;
-    }
-    
-    this.updateTimestamp();
-  }
-
-  /**
-   * 로그인 시간 업데이트
-   */
-  public recordLogin(): void {
-    this.props.lastLoginAt = new Date();
-    this.updateTimestamp();
-  }
-
-  /**
-   * 사용자 정지
-   */
-  public suspend(): void {
-    if (this.props.status === UserStatus.DELETED) {
-      throw new BusinessRuleError('Cannot suspend deleted user');
-    }
-    
-    this.props.status = UserStatus.SUSPENDED;
-    this.updateTimestamp();
-  }
-
-  /**
-   * 사용자 활성화
-   */
-  public activate(): void {
-    if (this.props.status === UserStatus.DELETED) {
-      throw new BusinessRuleError('Cannot activate deleted user');
-    }
-    
-    if (!this.props.emailVerified) {
-      throw new BusinessRuleError('Cannot activate user with unverified email');
-    }
-    
-    this.props.status = UserStatus.ACTIVE;
-    this.updateTimestamp();
-  }
-
-  /**
-   * 사용자 삭제 (소프트 삭제)
-   */
-  public delete(): void {
-    this.props.status = UserStatus.DELETED;
-    this.updateTimestamp();
-  }
-
-  /**
-   * 타임스탬프 업데이트
-   */
-  private updateTimestamp(): void {
-    this.props.updatedAt = new Date();
-  }
-
-  /**
-   * 보안 토큰 생성
-   */
-  private generateSecureToken(): string {
-    return Array.from(crypto.getRandomValues(new Uint8Array(32)))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
+  static fromPersistence(params: {
+    id: string;
+    email: string;
+    passwordHash: string;
+    name: string;
+    emailVerified: boolean;
+    birthDate: Date;
+    gender?: Gender;
+    createdAt: Date;
+    updatedAt: Date;
+  }): User {
+    return new User(
+      UserId.from(params.id),
+      Email.create(params.email),
+      Password.fromHash(params.passwordHash),
+      params.name,
+      params.emailVerified,
+      params.birthDate,
+      params.gender,
+      params.createdAt,
+      params.updatedAt
+    );
   }
 
   // Getters
-  get id(): UserId { return this.props.id; }
-  get email(): Email { return this.props.email; }
-  get username(): string | undefined { return this.props.username; }
-  get fullName(): string | undefined { return this.props.fullName; }
-  get profileImageUrl(): string | undefined { return this.props.profileImageUrl; }
-  get bio(): string | undefined { return this.props.bio; }
-  get status(): UserStatus { return this.props.status; }
-  get role(): UserRole { return this.props.role; }
-  get emailVerified(): boolean { return this.props.emailVerified; }
-  get lastLoginAt(): Date | undefined { return this.props.lastLoginAt; }
-  get createdAt(): Date { return this.props.createdAt; }
-  get updatedAt(): Date { return this.props.updatedAt; }
+  get id(): UserId {
+    return this._id;
+  }
+
+  get email(): Email {
+    return this._email;
+  }
+
+  get password(): Password {
+    return this._password;
+  }
+
+  get name(): string {
+    return this._name;
+  }
+
+  get emailVerified(): boolean {
+    return this._emailVerified;
+  }
+
+  get birthDate(): Date {
+    return this._birthDate;
+  }
+
+  get gender(): Gender | undefined {
+    return this._gender;
+  }
+
+  get createdAt(): Date {
+    return this._createdAt;
+  }
+
+  get updatedAt(): Date {
+    return this._updatedAt;
+  }
 
   /**
-   * 엔티티를 영속성 계층용 plain object로 변환
+   * 나이 계산
    */
-  public toPersistence(): UserProps {
-    return { ...this.props };
+  getAge(): number {
+    const today = new Date();
+    const birthDate = new Date(this._birthDate);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    
+    return age;
+  }
+
+  /**
+   * 이메일 인증 처리
+   */
+  verifyEmail(): void {
+    this._emailVerified = true;
+    this._updatedAt = new Date();
+  }
+
+  /**
+   * 이름 변경
+   */
+  changeName(newName: string): void {
+    if (!newName || newName.trim().length < 2) {
+      throw new Error('이름은 2자 이상이어야 합니다');
+    }
+    this._name = newName.trim();
+    this._updatedAt = new Date();
+  }
+
+  /**
+   * 영속성을 위한 일반 객체로 변환
+   */
+  toPersistence() {
+    return {
+      id: this._id.getValue(),
+      email: this._email.getValue(),
+      passwordHash: this._password.getHashedValue(),
+      name: this._name,
+      emailVerified: this._emailVerified,
+      birthDate: this._birthDate,
+      gender: this._gender,
+      createdAt: this._createdAt,
+      updatedAt: this._updatedAt,
+    };
   }
 }

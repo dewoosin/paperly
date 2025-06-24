@@ -1,7 +1,7 @@
 // apps/backend/src/infrastructure/repositories/user.repository.ts
 
 import { Pool } from 'pg';
-import { db } from '../database/connection';
+import { db } from '../config/database.config';
 import { User } from '../../domain/entities/user.entity';
 import { Email } from '../../domain/value-objects/email.vo';
 import { Password } from '../../domain/value-objects/password.vo';
