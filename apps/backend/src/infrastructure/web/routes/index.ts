@@ -3,6 +3,7 @@
 import { Router } from 'express';
 import { container } from 'tsyringe';
 import { Logger } from '../../logging/Logger';
+import { AuthController } from '../controllers/auth.controller';
 
 const logger = new Logger('Routes');
 
@@ -21,96 +22,17 @@ apiRouter.get('/', (req, res) => {
 });
 
 /**
- * 임시 Auth 라우트 (테스트용)
+ * 실제 Auth 라우트 설정
  */
-function setupTempAuthRoutes(): Router {
-  const authRouter = Router();
-
-  // 임시 회원가입 엔드포인트
-  authRouter.post('/register', (req, res) => {
-    logger.info('임시 회원가입 요청 받음', { body: req.body });
-    
-    // 임시 응답
-    res.status(201).json({
-      success: true,
-      data: {
-        user: {
-          id: 'temp-user-id',
-          email: req.body.email,
-          name: req.body.name
-        },
-        tokens: {
-          accessToken: 'temp-access-token',
-          refreshToken: 'temp-refresh-token'
-        },
-        emailVerificationSent: false,
-        message: '임시 회원가입이 완료되었습니다.'
-      }
-    });
-  });
-
-  // 임시 로그인 엔드포인트
-  authRouter.post('/login', (req, res) => {
-    logger.info('임시 로그인 요청 받음', { body: req.body });
-    
-    res.json({
-      success: true,
-      data: {
-        user: {
-          id: 'temp-user-id',
-          email: req.body.email,
-          name: 'Test User',
-          emailVerified: true
-        },
-        tokens: {
-          accessToken: 'temp-access-token',
-          refreshToken: 'temp-refresh-token'
-        }
-      }
-    });
-  });
-
-  // 기타 임시 엔드포인트들
-  authRouter.post('/refresh', (req, res) => {
-    res.json({
-      success: true,
-      data: {
-        tokens: {
-          accessToken: 'new-temp-access-token',
-          refreshToken: 'new-temp-refresh-token'
-        }
-      }
-    });
-  });
-
-  authRouter.post('/logout', (req, res) => {
-    res.json({
-      success: true,
-      message: '로그아웃 되었습니다.'
-    });
-  });
-
-  authRouter.get('/verify-email', (req, res) => {
-    res.json({
-      success: true,
-      message: '이메일 인증이 완료되었습니다.'
-    });
-  });
-
-  authRouter.post('/resend-verification', (req, res) => {
-    res.json({
-      success: true,
-      message: '인증 메일이 재발송되었습니다.'
-    });
-  });
-
-  return authRouter;
+function setupAuthRoutes(): Router {
+  const authController = container.resolve(AuthController);
+  return authController.router;
 }
 
-// 임시 Auth 라우트 등록
-apiRouter.use('/auth', setupTempAuthRoutes());
+// 실제 Auth 라우트 등록
+apiRouter.use('/auth', setupAuthRoutes());
 
-logger.info('API routes initialized with temporary Auth endpoints');
+logger.info('API routes initialized with real Auth endpoints');
 
 // TODO: Day 4 - User routes  
 // apiRouter.use('/users', userRouter);

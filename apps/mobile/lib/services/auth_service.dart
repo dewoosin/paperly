@@ -1,6 +1,5 @@
 // lib/services/auth_service.dart
 
-import 'dart:io';
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -19,6 +18,7 @@ class AuthService {
   static const String _accessTokenKey = 'access_token';
   static const String _refreshTokenKey = 'refresh_token';
   static const String _userKey = 'user_data';
+  static const String _deviceIdKey = 'device_id';
   
   AuthService({
     required Dio dio,
@@ -47,8 +47,26 @@ class AuthService {
         onError: (error, handler) async {
           // 401 에러 시 토큰 갱신 시도
           if (error.response?.statusCode == 401) {
-            await logout();
-            return handler.reject(error);
+            // 토큰 갱신 요청이 아닌 경우에만 갱신 시도
+            if (!error.requestOptions.path.contains('/auth/refresh')) {
+              try {
+                // Refresh token으로 새 토큰 발급 시도
+                await refreshTokens();
+                
+                // 원래 요청 재시도
+                final clonedRequest = await _retryRequest(error.requestOptions);
+                return handler.resolve(clonedRequest);
+              } catch (refreshError) {
+                // 토큰 갱신 실패 시 로그아웃
+                logger.e('토큰 갱신 실패, 로그아웃 처리', error: refreshError);
+                await logout();
+                return handler.reject(error);
+              }
+            } else {
+              // Refresh token도 만료된 경우 로그아웃
+              await logout();
+              return handler.reject(error);
+            }
           }
           handler.next(error);
         },
@@ -239,18 +257,78 @@ class AuthService {
 
   /// 디바이스 ID 가져오기
   Future<String> _getDeviceId() async {
+    // 저장된 디바이스 ID 확인
+    String? storedDeviceId = _prefs.getString(_deviceIdKey);
+    if (storedDeviceId != null && storedDeviceId.isNotEmpty) {
+      return storedDeviceId;
+    }
+    
+    // 새로운 디바이스 ID 생성
+    String deviceId;
+    
     try {
-      if (Platform.isAndroid) {
-        final androidInfo = await _deviceInfo.androidInfo;
-        return androidInfo.id;
-      } else if (Platform.isIOS) {
-        final iosInfo = await _deviceInfo.iosInfo;
-        return iosInfo.identifierForVendor ?? 'unknown';
+      if (kIsWeb) {
+        // 웹에서는 브라우저 정보를 기반으로 고유 ID 생성
+        final webInfo = await _deviceInfo.webBrowserInfo;
+        final userAgent = webInfo.userAgent ?? '';
+        final vendor = webInfo.vendor ?? '';
+        final platform = webInfo.platform ?? '';
+        final language = webInfo.language ?? '';
+        
+        // 브라우저 정보와 타임스탬프를 조합하여 고유한 ID 생성
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final combined = '${vendor}_${platform}_${language}_${userAgent.hashCode}_$timestamp';
+        deviceId = 'web_${combined.hashCode.toRadixString(16)}';
+      } else {
+        // 모바일 플랫폼
+        if (defaultTargetPlatform == TargetPlatform.android) {
+          final androidInfo = await _deviceInfo.androidInfo;
+          deviceId = androidInfo.id;
+        } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+          final iosInfo = await _deviceInfo.iosInfo;
+          deviceId = iosInfo.identifierForVendor ?? _generateFallbackId();
+        } else {
+          deviceId = _generateFallbackId();
+        }
       }
     } catch (e) {
       logger.e('디바이스 ID 가져오기 실패', error: e);
+      deviceId = _generateFallbackId();
     }
-    return 'unknown';
+    
+    // 생성된 디바이스 ID 저장
+    await _prefs.setString(_deviceIdKey, deviceId);
+    logger.i('새 디바이스 ID 생성 및 저장: $deviceId');
+    
+    return deviceId;
+  }
+  
+  /// 대체 디바이스 ID 생성
+  String _generateFallbackId() {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final random = timestamp.hashCode;
+    return 'fallback_${timestamp}_${random.toRadixString(16)}';
+  }
+
+  /// 요청 재시도
+  Future<Response> _retryRequest(RequestOptions requestOptions) async {
+    final options = Options(
+      method: requestOptions.method,
+      headers: requestOptions.headers,
+    );
+    
+    // 새로운 access token 추가
+    final accessToken = await getAccessToken();
+    if (accessToken != null) {
+      options.headers?['Authorization'] = 'Bearer $accessToken';
+    }
+    
+    return _dio.request(
+      requestOptions.path,
+      data: requestOptions.data,
+      queryParameters: requestOptions.queryParameters,
+      options: options,
+    );
   }
 
   /// 에러 처리

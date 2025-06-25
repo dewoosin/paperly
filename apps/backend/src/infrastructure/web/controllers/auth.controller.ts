@@ -97,8 +97,18 @@ export class AuthController {
   private async login(req: Request, res: Response, next: NextFunction) {
     try {
       // 디바이스 정보 추출
+      const deviceId = req.headers['x-device-id'] as string || 'unknown';
+      
+      if (deviceId === 'unknown') {
+        this.logger.warn('로그인 시 디바이스 ID가 제공되지 않음', { 
+          userAgent: req.headers['user-agent'],
+          ip: req.ip,
+          email: req.body.email
+        });
+      }
+      
       const deviceInfo = {
-        deviceId: req.headers['x-device-id'] as string,
+        deviceId,
         userAgent: req.headers['user-agent'],
         ipAddress: req.ip || req.connection.remoteAddress
       };
@@ -131,8 +141,17 @@ export class AuthController {
   private async refreshToken(req: Request, res: Response, next: NextFunction) {
     try {
       // 디바이스 정보 추출
+      const deviceId = req.headers['x-device-id'] as string || 'unknown';
+      
+      if (deviceId === 'unknown') {
+        this.logger.warn('토큰 갱신 시 디바이스 ID가 제공되지 않음', { 
+          userAgent: req.headers['user-agent'],
+          ip: req.ip 
+        });
+      }
+      
       const deviceInfo = {
-        deviceId: req.headers['x-device-id'] as string,
+        deviceId,
         userAgent: req.headers['user-agent'],
         ipAddress: req.ip || req.connection.remoteAddress
       };

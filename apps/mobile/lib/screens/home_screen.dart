@@ -163,9 +163,19 @@ class _HomeScreenState extends State<HomeScreen>
               style: MujiTheme.mobileH1,
             ),
             const SizedBox(height: 4),
-            Text(
-              '$userName님, 오늘의 지식을 만나보세요',
-              style: MujiTheme.mobileCaption,
+            Row(
+              children: [
+                Text(
+                  '$userName님, 오늘의 지식을 만나보세요',
+                  style: MujiTheme.mobileCaption,
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  CupertinoIcons.checkmark_seal_fill,
+                  size: 16,
+                  color: MujiTheme.sage,
+                ),
+              ],
             ),
           ],
         ),
@@ -213,9 +223,32 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
           TextButton(
-            onPressed: () {
-              // TODO: 인증 메일 재발송
+            onPressed: () async {
               HapticFeedback.lightImpact();
+              try {
+                final authProvider = context.read<AuthProvider>();
+                await authProvider.resendVerificationEmail();
+                
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('인증 메일을 다시 발송했습니다'),
+                      backgroundColor: MujiTheme.sage,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('메일 발송 실패: ${e.toString().replaceAll('Exception: ', '')}'),
+                      backgroundColor: Colors.red,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              }
             },
             child: Text(
               '재발송',
@@ -231,58 +264,303 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildTodayContent() {
+    final authProvider = context.watch<AuthProvider>();
+    final user = authProvider.currentUser;
+    final isEmailVerified = user?.emailVerified ?? false;
+    
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '오늘의 콘텐츠',
-            style: MujiTheme.mobileH3,
+          Row(
+            children: [
+              Text(
+                '오늘의 콘텐츠',
+                style: MujiTheme.mobileH3,
+              ),
+              const Spacer(),
+              if (isEmailVerified)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: MujiTheme.sage.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '인증 완료',
+                    style: MujiTheme.mobileLabel.copyWith(
+                      color: MujiTheme.sage,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 16),
-          Container(
-            height: 200,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  MujiTheme.sage.withOpacity(0.7),
-                  MujiTheme.moss.withOpacity(0.5),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    CupertinoIcons.doc_text,
-                    size: 48,
-                    color: Colors.white.withOpacity(0.9),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    '곧 콘텐츠가 준비됩니다',
-                    style: MujiTheme.mobileH3.copyWith(
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Day 4에서 만나요!',
-                    style: MujiTheme.mobileCaption.copyWith(
-                      color: Colors.white.withOpacity(0.8),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          
+          // 이메일 인증된 사용자를 위한 콘텐츠
+          if (isEmailVerified) ...[
+            _buildWelcomeCard(),
+            const SizedBox(height: 16),
+            _buildQuickActions(),
+            const SizedBox(height: 16),
+            _buildRecentActivity(),
+          ] else ...[
+            // 이메일 미인증 사용자를 위한 제한된 콘텐츠
+            _buildLimitedAccessCard(),
+          ],
         ],
       ),
+    );
+  }
+  
+  Widget _buildWelcomeCard() {
+    return Container(
+      height: 200,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            MujiTheme.sage.withOpacity(0.8),
+            MujiTheme.moss.withOpacity(0.6),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  CupertinoIcons.checkmark_seal_fill,
+                  color: Colors.white,
+                  size: 24,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '모든 기능 이용 가능',
+                  style: MujiTheme.mobileCaption.copyWith(
+                    color: Colors.white.withOpacity(0.9),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const Spacer(),
+            Text(
+              '지식의 여정을\n시작해보세요',
+              style: MujiTheme.mobileH2.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '인증이 완료되어 모든 기능을 자유롭게 사용할 수 있습니다',
+              style: MujiTheme.mobileCaption.copyWith(
+                color: Colors.white.withOpacity(0.8),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildLimitedAccessCard() {
+    return Container(
+      height: 200,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            MujiTheme.sand.withOpacity(0.7),
+            MujiTheme.sand.withOpacity(0.5),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  CupertinoIcons.info_circle_fill,
+                  color: Colors.white,
+                  size: 24,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '제한된 액세스',
+                  style: MujiTheme.mobileCaption.copyWith(
+                    color: Colors.white.withOpacity(0.9),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const Spacer(),
+            Text(
+              '이메일 인증 후\n모든 기능을 이용하세요',
+              style: MujiTheme.mobileH2.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '인증 메일을 확인하시고 계정을 활성화해주세요',
+              style: MujiTheme.mobileCaption.copyWith(
+                color: Colors.white.withOpacity(0.8),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildQuickActions() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '빠른 액션',
+          style: MujiTheme.mobileH4,
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildActionCard(
+                icon: CupertinoIcons.add_circled,
+                title: '새 노트',
+                subtitle: '아이디어 기록하기',
+                onTap: () {
+                  // TODO: 새 노트 작성
+                  HapticFeedback.lightImpact();
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildActionCard(
+                icon: CupertinoIcons.search,
+                title: '검색',
+                subtitle: '지식 찾아보기',
+                onTap: () {
+                  // TODO: 검색 화면
+                  HapticFeedback.lightImpact();
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+  
+  Widget _buildActionCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: MujiTheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: MujiTheme.border,
+            width: 0.5,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              icon,
+              size: 24,
+              color: MujiTheme.sage,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: MujiTheme.mobileBody.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              style: MujiTheme.mobileLabel.copyWith(
+                color: MujiTheme.textLight,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildRecentActivity() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '최근 활동',
+          style: MujiTheme.mobileH4,
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: MujiTheme.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: MujiTheme.border,
+              width: 0.5,
+            ),
+          ),
+          child: Center(
+            child: Column(
+              children: [
+                Icon(
+                  CupertinoIcons.time,
+                  size: 32,
+                  color: MujiTheme.textLight,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '아직 활동이 없습니다',
+                  style: MujiTheme.mobileBody.copyWith(
+                    color: MujiTheme.textLight,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '첫 번째 노트를 작성해보세요',
+                  style: MujiTheme.mobileCaption.copyWith(
+                    color: MujiTheme.textHint,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 

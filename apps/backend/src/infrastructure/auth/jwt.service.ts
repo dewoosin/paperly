@@ -3,7 +3,7 @@
 import jwt from 'jsonwebtoken';
 import { jwtConfig, JwtPayload, DecodedToken } from './jwt.config';
 import { UnauthorizedError } from '../../shared/errors';
-import { logger } from '../logging/logger';
+import { Logger } from '../logging/Logger';
 
 /**
  * JWT 토큰 서비스
@@ -209,6 +209,3 @@ export class JwtService {
     }
   }
 }
-
-// Logger import
-import { Logger } from '../logging/Logger';

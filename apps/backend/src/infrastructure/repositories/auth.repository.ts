@@ -1,119 +1,248 @@
-// /Users/workspace/paperly/apps/backend/src/infrastructure/auth/jwt.config.ts
+// /Users/workspace/paperly/apps/backend/src/infrastructure/repositories/auth.repository.ts
 
-import { config } from '../config/env.config';
+import { injectable } from 'tsyringe';
+import { PrismaClient } from '@prisma/client';
+import { v4 as uuidv4 } from 'uuid';
+import { Logger } from '../logging/Logger';
 
 /**
- * JWT 설정
+ * 인증 관련 리포지토리
  * 
- * JWT 토큰 생성 및 검증에 필요한 설정값들을 정의합니다.
+ * Refresh Token, Email Verification, Login Attempt 등의
+ * 인증 관련 데이터 액세스를 담당합니다.
  */
+@injectable()
+export class AuthRepository {
+  private readonly logger = new Logger('AuthRepository');
+  private readonly prisma: PrismaClient;
 
-/**
- * JWT 페이로드 타입
- */
-export interface JwtPayload {
-  userId: string;
-  email: string;
-  type: 'access' | 'refresh';
-  iat?: number;
-  exp?: number;
-  iss?: string;
-  aud?: string;
+  constructor() {
+    this.prisma = new PrismaClient();
+  }
+
+  /**
+   * Refresh Token 저장
+   */
+  async saveRefreshToken(
+    userId: string,
+    token: string,
+    expiresAt: Date,
+    deviceId?: string,
+    userAgent?: string,
+    ipAddress?: string
+  ): Promise<void> {
+    try {
+      await this.prisma.refreshToken.create({
+        data: {
+          id: uuidv4(),
+          userId,
+          token,
+          expiresAt,
+          deviceId,
+          userAgent,
+          ipAddress,
+          createdAt: new Date(),
+        },
+      });
+
+      this.logger.info('Refresh token saved', { userId, deviceId });
+    } catch (error) {
+      this.logger.error('Failed to save refresh token', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Refresh Token 조회
+   */
+  async findRefreshToken(token: string): Promise<any | null> {
+    try {
+      return await this.prisma.refreshToken.findFirst({
+        where: {
+          token,
+          expiresAt: {
+            gt: new Date(),
+          },
+        },
+        include: {
+          user: true,
+        },
+      });
+    } catch (error) {
+      this.logger.error('Failed to find refresh token', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Refresh Token 삭제
+   */
+  async deleteRefreshToken(token: string): Promise<void> {
+    try {
+      await this.prisma.refreshToken.deleteMany({
+        where: { token },
+      });
+    } catch (error) {
+      this.logger.error('Failed to delete refresh token', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 사용자의 모든 Refresh Token 삭제
+   */
+  async deleteAllUserRefreshTokens(userId: string): Promise<void> {
+    try {
+      await this.prisma.refreshToken.deleteMany({
+        where: { userId },
+      });
+
+      this.logger.info('All refresh tokens deleted for user', { userId });
+    } catch (error) {
+      this.logger.error('Failed to delete all user refresh tokens', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 만료된 Refresh Token 정리
+   */
+  async cleanupExpiredRefreshTokens(): Promise<number> {
+    try {
+      const result = await this.prisma.refreshToken.deleteMany({
+        where: {
+          expiresAt: {
+            lt: new Date(),
+          },
+        },
+      });
+
+      this.logger.info('Expired refresh tokens cleaned up', { count: result.count });
+      return result.count;
+    } catch (error) {
+      this.logger.error('Failed to cleanup expired refresh tokens', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 로그인 시도 기록
+   */
+  async recordLoginAttempt(
+    email: string,
+    success: boolean,
+    ipAddress?: string,
+    userAgent?: string
+  ): Promise<void> {
+    try {
+      await this.prisma.loginAttempt.create({
+        data: {
+          id: uuidv4(),
+          email,
+          success,
+          ipAddress,
+          userAgent,
+          attemptedAt: new Date(),
+        },
+      });
+    } catch (error) {
+      this.logger.error('Failed to record login attempt', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 최근 로그인 시도 조회
+   */
+  async getRecentLoginAttempts(
+    email: string,
+    minutes: number = 15
+  ): Promise<any[]> {
+    try {
+      const since = new Date(Date.now() - minutes * 60 * 1000);
+      
+      return await this.prisma.loginAttempt.findMany({
+        where: {
+          email,
+          attemptedAt: {
+            gte: since,
+          },
+        },
+        orderBy: {
+          attemptedAt: 'desc',
+        },
+      });
+    } catch (error) {
+      this.logger.error('Failed to get recent login attempts', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 이메일 인증 토큰 저장
+   */
+  async saveEmailVerificationToken(
+    userId: string,
+    token: string,
+    expiresAt: Date
+  ): Promise<void> {
+    try {
+      await this.prisma.emailVerification.create({
+        data: {
+          id: uuidv4(),
+          userId,
+          token,
+          expiresAt,
+          createdAt: new Date(),
+        },
+      });
+
+      this.logger.info('Email verification token saved', { userId });
+    } catch (error) {
+      this.logger.error('Failed to save email verification token', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 이메일 인증 토큰 조회
+   */
+  async findEmailVerificationToken(token: string): Promise<any | null> {
+    try {
+      return await this.prisma.emailVerification.findFirst({
+        where: {
+          token,
+          expiresAt: {
+            gt: new Date(),
+          },
+          verifiedAt: null,
+        },
+        include: {
+          user: true,
+        },
+      });
+    } catch (error) {
+      this.logger.error('Failed to find email verification token', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 이메일 인증 완료 처리
+   */
+  async markEmailAsVerified(token: string): Promise<void> {
+    try {
+      await this.prisma.emailVerification.update({
+        where: { token },
+        data: {
+          verifiedAt: new Date(),
+        },
+      });
+
+      this.logger.info('Email marked as verified', { token });
+    } catch (error) {
+      this.logger.error('Failed to mark email as verified', error);
+      throw error;
+    }
+  }
 }
-
-/**
- * 디코딩된 토큰 타입
- */
-export interface DecodedToken extends JwtPayload {
-  iat: number;
-  exp: number;
-  iss: string;
-  aud: string;
-}
-
-/**
- * JWT 설정값
- */
-export const jwtConfig = {
-  // Access Token 설정
-  accessTokenSecret: config.JWT_SECRET || 'your-super-secret-jwt-key-change-this',
-  accessTokenExpiresIn: '15m', // 15분
-  
-  // Refresh Token 설정
-  refreshTokenSecret: config.JWT_REFRESH_SECRET || config.JWT_SECRET + '-refresh',
-  refreshTokenExpiresIn: '7d', // 7일
-  
-  // 공통 설정
-  issuer: 'paperly-api',
-  audience: 'paperly-client',
-  
-  // 알고리즘
-  algorithm: 'HS256' as const,
-};
-
-/**
- * 토큰 만료 시간 계산 헬퍼
- */
-export const tokenExpiryTimes = {
-  // Access Token: 15분 (밀리초)
-  accessToken: 15 * 60 * 1000,
-  
-  // Refresh Token: 7일 (밀리초)
-  refreshToken: 7 * 24 * 60 * 60 * 1000,
-  
-  // Email Verification Token: 24시간 (밀리초)
-  emailVerification: 24 * 60 * 60 * 1000,
-  
-  // Password Reset Token: 1시간 (밀리초)
-  passwordReset: 60 * 60 * 1000,
-};
-
-/**
- * 토큰 타입별 시크릿 키 가져오기
- */
-export function getTokenSecret(type: 'access' | 'refresh'): string {
-  return type === 'access' 
-    ? jwtConfig.accessTokenSecret 
-    : jwtConfig.refreshTokenSecret;
-}
-
-/**
- * 토큰 타입별 만료 시간 가져오기
- */
-export function getTokenExpiresIn(type: 'access' | 'refresh'): string {
-  return type === 'access'
-    ? jwtConfig.accessTokenExpiresIn
-    : jwtConfig.refreshTokenExpiresIn;
-}
-
-/**
- * 환경별 쿠키 설정
- */
-export const cookieConfig = {
-  httpOnly: true,
-  secure: config.NODE_ENV === 'production',
-  sameSite: 'strict' as const,
-  maxAge: tokenExpiryTimes.refreshToken,
-  path: '/',
-};
-
-/**
- * CORS에서 허용할 헤더
- */
-export const allowedHeaders = [
-  'Authorization',
-  'X-Refresh-Token',
-  'X-Device-Id',
-  'X-Client-Version',
-];
-
-/**
- * 토큰 블랙리스트 TTL (Redis)
- */
-export const blacklistTTL = {
-  // Access Token 블랙리스트: 토큰 만료 시간 + 1시간
-  accessToken: tokenExpiryTimes.accessToken + (60 * 60 * 1000),
-  
-  // Refresh Token 블랙리스트: 토큰 만료 시간 + 1일
-  refreshToken: tokenExpiryTimes.refreshToken + (24 * 60 * 60 * 1000),
-};

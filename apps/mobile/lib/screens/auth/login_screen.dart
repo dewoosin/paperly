@@ -88,8 +88,22 @@ class _LoginScreenState extends State<LoginScreen>
         ),
       );
       
-      // 로그인 성공 시 메인 화면으로 이동
+      // 로그인 성공 시 환영 메시지 표시 후 메인 화면으로 이동
       if (mounted) {
+        // AuthProvider 상태 업데이트 대기
+        await Future.delayed(const Duration(milliseconds: 100));
+        
+        // 성공 메시지 표시
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('환영합니다! ${authProvider.currentUser?.name ?? '사용자'}님'),
+            backgroundColor: MujiTheme.sage,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        
+        // 메인 화면으로 이동
         Navigator.of(context).pushReplacementNamed('/home');
       }
     } catch (e) {

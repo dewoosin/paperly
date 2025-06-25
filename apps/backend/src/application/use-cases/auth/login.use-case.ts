@@ -17,10 +17,10 @@ const LoginInputSchema = z.object({
   email: z.string().email('올바른 이메일 형식이 아닙니다'),
   password: z.string().min(1, '비밀번호를 입력해주세요'),
   deviceInfo: z.object({
-    deviceId: z.string().optional(),
+    deviceId: z.string().default('unknown'),
     userAgent: z.string().optional(),
     ipAddress: z.string().optional()
-  }).optional()
+  })
 });
 
 export type LoginInput = z.infer<typeof LoginInputSchema>;
@@ -58,7 +58,8 @@ export class LoginUseCase {
 
   constructor(
     @inject('UserRepository') private userRepository: IUserRepository,
-    @inject('TokenService') private tokenService: typeof JwtService
+    @inject('TokenService') private tokenService: typeof JwtService,
+    @inject(AuthRepository) private authRepository: AuthRepository
   ) {}
 
   async execute(input: LoginInput): Promise<LoginOutput> {
@@ -76,41 +77,56 @@ export class LoginUseCase {
       const user = await this.userRepository.findByEmail(email);
       
       if (!user) {
-        this.recordFailedAttempt(validatedInput.email);
-        throw new UnauthorizedError('이메일 또는 비밀번호가 올바르지 않습니다');
+        await this.recordFailedAttempt(validatedInput.email, validatedInput.deviceInfo);
+        // 보안상 이메일 존재 여부를 노출하지 않음
+        throw new UnauthorizedError('이메일 또는 비밀번호가 올바르지 않습니다. 입력하신 정보를 다시 확인해주세요.');
       }
 
       // 4. 비밀번호 검증
       const isPasswordValid = await user.password.verify(validatedInput.password);
       if (!isPasswordValid) {
-        this.recordFailedAttempt(validatedInput.email);
-        throw new UnauthorizedError('이메일 또는 비밀번호가 올바르지 않습니다');
+        await this.recordFailedAttempt(validatedInput.email, validatedInput.deviceInfo);
+        throw new UnauthorizedError('이메일 또는 비밀번호가 올바르지 않습니다. 입력하신 정보를 다시 확인해주세요.');
       }
 
-      // 5. 로그인 성공 - 시도 기록 초기화
+      // 5. 이메일 인증 확인
+      if (!user.emailVerified) {
+        this.logger.warn('이메일 미인증 사용자 로그인 시도', { userId: user.id.getValue() });
+        // 로그인은 허용하되, 클라이언트에서 인증 필요 메시지 표시
+      }
+
+      // 6. 로그인 성공 - 시도 기록 초기화
       this.clearLoginAttempts(validatedInput.email);
 
-      // 6. JWT 토큰 생성
+      // 7. JWT 토큰 생성
       const tokens = this.tokenService.generateTokenPair(
         user.id.getValue(),
         user.email.getValue()
       );
 
-      // 7. Refresh Token 저장
+      // 8. Refresh Token 저장
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7일
-      await AuthRepository.saveRefreshToken(
+      await this.authRepository.saveRefreshToken(
         user.id.getValue(),
         tokens.refreshToken,
         expiresAt,
-        validatedInput.deviceInfo?.deviceId,
-        validatedInput.deviceInfo?.userAgent,
-        validatedInput.deviceInfo?.ipAddress
+        validatedInput.deviceInfo.deviceId,
+        validatedInput.deviceInfo.userAgent,
+        validatedInput.deviceInfo.ipAddress
       );
 
-      // 8. 로그인 성공 기록
+      // 9. 로그인 성공 기록
+      await this.authRepository.recordLoginAttempt(
+        validatedInput.email,
+        true,
+        validatedInput.deviceInfo?.ipAddress,
+        validatedInput.deviceInfo?.userAgent
+      );
+
       this.logger.info('로그인 성공', { 
         userId: user.id.getValue(),
-        deviceId: validatedInput.deviceInfo?.deviceId 
+        deviceId: validatedInput.deviceInfo.deviceId,
+        emailVerified: user.emailVerified
       });
 
       return {
@@ -156,7 +172,16 @@ export class LoginUseCase {
   /**
    * 실패한 로그인 시도 기록
    */
-  private recordFailedAttempt(email: string): void {
+  private async recordFailedAttempt(email: string, deviceInfo?: DeviceInfo): Promise<void> {
+    // DB에 실패 기록
+    await this.authRepository.recordLoginAttempt(
+      email,
+      false,
+      deviceInfo?.ipAddress,
+      deviceInfo?.userAgent
+    );
+    
+    // 메모리에도 기록 (빠른 체크를 위해)
     const attempts = this.loginAttempts.get(email) || { count: 0, lastAttempt: new Date() };
     attempts.count++;
     attempts.lastAttempt = new Date();
@@ -172,7 +197,7 @@ export class LoginUseCase {
       const remainingAttempts = this.MAX_LOGIN_ATTEMPTS - attempts.count;
       if (remainingAttempts > 0) {
         throw new UnauthorizedError(
-          `이메일 또는 비밀번호가 올바르지 않습니다. (남은 시도: ${remainingAttempts}회)`
+          `로그인에 실패했습니다. ${remainingAttempts}번의 시도가 남았습니다. 5회 실패 시 15분간 로그인이 제한됩니다.`
         );
       }
     }
