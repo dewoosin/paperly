@@ -1,8 +1,6 @@
 // /Users/workspace/paperly/apps/backend/src/infrastructure/repositories/auth.repository.ts
 
 import { injectable } from 'tsyringe';
-import { PrismaClient } from '@prisma/client';
-import { v4 as uuidv4 } from 'uuid';
 import { Logger } from '../logging/Logger';
 
 /**
@@ -14,10 +12,12 @@ import { Logger } from '../logging/Logger';
 @injectable()
 export class AuthRepository {
   private readonly logger = new Logger('AuthRepository');
-  private readonly prisma: PrismaClient;
+  private refreshTokens = new Map();
+  private loginAttempts = [];
+  private emailVerifications = new Map();
 
   constructor() {
-    this.prisma = new PrismaClient();
+    this.logger.info('AuthRepository initialized with in-memory storage');
   }
 
   /**
@@ -32,19 +32,17 @@ export class AuthRepository {
     ipAddress?: string
   ): Promise<void> {
     try {
-      await this.prisma.refreshToken.create({
-        data: {
-          id: uuidv4(),
-          userId,
-          token,
-          expiresAt,
-          deviceId,
-          userAgent,
-          ipAddress,
-          createdAt: new Date(),
-        },
-      });
+      const tokenData = {
+        userId,
+        token,
+        expiresAt,
+        deviceId,
+        userAgent,
+        ipAddress,
+        createdAt: new Date(),
+      };
 
+      this.refreshTokens.set(token, tokenData);
       this.logger.info('Refresh token saved', { userId, deviceId });
     } catch (error) {
       this.logger.error('Failed to save refresh token', error);
@@ -57,17 +55,11 @@ export class AuthRepository {
    */
   async findRefreshToken(token: string): Promise<any | null> {
     try {
-      return await this.prisma.refreshToken.findFirst({
-        where: {
-          token,
-          expiresAt: {
-            gt: new Date(),
-          },
-        },
-        include: {
-          user: true,
-        },
-      });
+      const tokenData = this.refreshTokens.get(token);
+      if (tokenData && tokenData.expiresAt > new Date()) {
+        return { ...tokenData, user: { id: tokenData.userId } };
+      }
+      return null;
     } catch (error) {
       this.logger.error('Failed to find refresh token', error);
       throw error;
@@ -79,9 +71,8 @@ export class AuthRepository {
    */
   async deleteRefreshToken(token: string): Promise<void> {
     try {
-      await this.prisma.refreshToken.deleteMany({
-        where: { token },
-      });
+      this.refreshTokens.delete(token);
+      this.logger.info('Refresh token deleted', { token });
     } catch (error) {
       this.logger.error('Failed to delete refresh token', error);
       throw error;
@@ -93,9 +84,11 @@ export class AuthRepository {
    */
   async deleteAllUserRefreshTokens(userId: string): Promise<void> {
     try {
-      await this.prisma.refreshToken.deleteMany({
-        where: { userId },
-      });
+      for (const [token, data] of this.refreshTokens.entries()) {
+        if (data.userId === userId) {
+          this.refreshTokens.delete(token);
+        }
+      }
 
       this.logger.info('All refresh tokens deleted for user', { userId });
     } catch (error) {
@@ -109,16 +102,18 @@ export class AuthRepository {
    */
   async cleanupExpiredRefreshTokens(): Promise<number> {
     try {
-      const result = await this.prisma.refreshToken.deleteMany({
-        where: {
-          expiresAt: {
-            lt: new Date(),
-          },
-        },
-      });
+      let count = 0;
+      const now = new Date();
+      
+      for (const [token, data] of this.refreshTokens.entries()) {
+        if (data.expiresAt < now) {
+          this.refreshTokens.delete(token);
+          count++;
+        }
+      }
 
-      this.logger.info('Expired refresh tokens cleaned up', { count: result.count });
-      return result.count;
+      this.logger.info('Expired refresh tokens cleaned up', { count });
+      return count;
     } catch (error) {
       this.logger.error('Failed to cleanup expired refresh tokens', error);
       throw error;
@@ -135,16 +130,16 @@ export class AuthRepository {
     userAgent?: string
   ): Promise<void> {
     try {
-      await this.prisma.loginAttempt.create({
-        data: {
-          id: uuidv4(),
-          email,
-          success,
-          ipAddress,
-          userAgent,
-          attemptedAt: new Date(),
-        },
-      });
+      const attempt = {
+        email,
+        success,
+        ipAddress,
+        userAgent,
+        attemptedAt: new Date(),
+      };
+      
+      this.loginAttempts.push(attempt);
+      this.logger.info('Login attempt recorded', attempt);
     } catch (error) {
       this.logger.error('Failed to record login attempt', error);
       throw error;
@@ -161,17 +156,12 @@ export class AuthRepository {
     try {
       const since = new Date(Date.now() - minutes * 60 * 1000);
       
-      return await this.prisma.loginAttempt.findMany({
-        where: {
-          email,
-          attemptedAt: {
-            gte: since,
-          },
-        },
-        orderBy: {
-          attemptedAt: 'desc',
-        },
-      });
+      return this.loginAttempts
+        .filter(attempt => 
+          attempt.email === email && 
+          attempt.attemptedAt >= since
+        )
+        .sort((a, b) => b.attemptedAt.getTime() - a.attemptedAt.getTime());
     } catch (error) {
       this.logger.error('Failed to get recent login attempts', error);
       throw error;
@@ -187,14 +177,12 @@ export class AuthRepository {
     expiresAt: Date
   ): Promise<void> {
     try {
-      await this.prisma.emailVerification.create({
-        data: {
-          id: uuidv4(),
-          userId,
-          token,
-          expiresAt,
-          createdAt: new Date(),
-        },
+      this.emailVerifications.set(token, {
+        userId,
+        token,
+        expiresAt,
+        createdAt: new Date(),
+        verifiedAt: null,
       });
 
       this.logger.info('Email verification token saved', { userId });
@@ -209,18 +197,11 @@ export class AuthRepository {
    */
   async findEmailVerificationToken(token: string): Promise<any | null> {
     try {
-      return await this.prisma.emailVerification.findFirst({
-        where: {
-          token,
-          expiresAt: {
-            gt: new Date(),
-          },
-          verifiedAt: null,
-        },
-        include: {
-          user: true,
-        },
-      });
+      const verification = this.emailVerifications.get(token);
+      if (verification && verification.expiresAt > new Date() && !verification.verifiedAt) {
+        return { ...verification, user: { id: verification.userId } };
+      }
+      return null;
     } catch (error) {
       this.logger.error('Failed to find email verification token', error);
       throw error;
@@ -232,14 +213,11 @@ export class AuthRepository {
    */
   async markEmailAsVerified(token: string): Promise<void> {
     try {
-      await this.prisma.emailVerification.update({
-        where: { token },
-        data: {
-          verifiedAt: new Date(),
-        },
-      });
-
-      this.logger.info('Email marked as verified', { token });
+      const verification = this.emailVerifications.get(token);
+      if (verification) {
+        verification.verifiedAt = new Date();
+        this.logger.info('Email marked as verified', { token });
+      }
     } catch (error) {
       this.logger.error('Failed to mark email as verified', error);
       throw error;

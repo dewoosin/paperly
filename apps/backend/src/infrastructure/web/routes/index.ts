@@ -22,15 +22,23 @@ apiRouter.get('/', (req, res) => {
 });
 
 /**
- * 실제 Auth 라우트 설정
+ * 실제 Auth 라우트 설정 (지연 로딩)
  */
 function setupAuthRoutes(): Router {
   const authController = container.resolve(AuthController);
   return authController.router;
 }
 
-// 실제 Auth 라우트 등록
-apiRouter.use('/auth', setupAuthRoutes());
+// 실제 Auth 라우트 등록 (지연 로딩으로 수정)
+apiRouter.use('/auth', (req, res, next) => {
+  try {
+    const authRouter = setupAuthRoutes();
+    authRouter(req, res, next);
+  } catch (error) {
+    logger.error('Auth route setup failed:', error);
+    next(error);
+  }
+});
 
 logger.info('API routes initialized with real Auth endpoints');
 

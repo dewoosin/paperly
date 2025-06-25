@@ -41,7 +41,8 @@ export class VerifyEmailUseCase {
 
   constructor(
     @inject('UserRepository') private userRepository: IUserRepository,
-    @inject('EmailService') private emailService: EmailService
+    @inject('EmailService') private emailService: EmailService,
+    @inject(AuthRepository) private authRepository: AuthRepository
   ) {}
 
   async execute(input: VerifyEmailInput): Promise<VerifyEmailOutput> {
@@ -52,7 +53,7 @@ export class VerifyEmailUseCase {
 
     try {
       // 2. 토큰 조회
-      const verificationToken = await AuthRepository.findEmailVerificationToken(
+      const verificationToken = await this.authRepository.findEmailVerificationToken(
         validatedInput.token
       );
       
@@ -87,7 +88,7 @@ export class VerifyEmailUseCase {
       await this.userRepository.save(user);
 
       // 6. 사용한 토큰 삭제
-      await AuthRepository.deleteEmailVerificationToken(validatedInput.token);
+      await this.authRepository.markEmailAsVerified(validatedInput.token);
 
       // 7. 환영 이메일 발송
       try {
@@ -141,7 +142,8 @@ export class ResendVerificationUseCase {
 
   constructor(
     @inject('UserRepository') private userRepository: IUserRepository,
-    @inject('EmailService') private emailService: EmailService
+    @inject('EmailService') private emailService: EmailService,
+    @inject(AuthRepository) private authRepository: AuthRepository
   ) {}
 
   async execute(input: ResendVerificationInput): Promise<ResendVerificationOutput> {
@@ -169,9 +171,14 @@ export class ResendVerificationUseCase {
       }
 
       // 4. 새로운 인증 토큰 생성
-      const verificationToken = await AuthRepository.createEmailVerificationToken(
-        user.id.getValue()
+      const token = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24시간
+      await this.authRepository.saveEmailVerificationToken(
+        user.id.getValue(),
+        token,
+        expiresAt
       );
+      const verificationToken = { token };
 
       // 5. 인증 이메일 발송
       await this.emailService.sendVerificationEmail(

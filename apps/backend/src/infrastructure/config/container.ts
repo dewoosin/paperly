@@ -6,8 +6,8 @@ import { container } from 'tsyringe';
 // Use Cases
 import { RegisterUseCase } from '../../application/use-cases/auth/register.use-case';
 import { LoginUseCase } from '../../application/use-cases/auth/login.use-case';
-import { RefreshTokenUseCase } from '../../application/use-cases/auth/refresh-token.use-case';
-import { VerifyEmailUseCase } from '../../application/use-cases/auth/verify-email.use-case';
+import { RefreshTokenUseCase, LogoutUseCase } from '../../application/use-cases/auth/refresh-token.use-case';
+import { VerifyEmailUseCase, ResendVerificationUseCase } from '../../application/use-cases/auth/verify-email.use-case';
 
 // Controllers
 import { AuthController } from '../web/controllers/auth.controller';
@@ -104,6 +104,11 @@ class MockUserRepository {
 class MockEmailService {
   async sendVerificationEmail(email: string, name: string, token: string) {
     logger.info('인증 이메일 발송됨 (Mock)', { email, name });
+    return true;
+  }
+
+  async sendWelcomeEmail(email: string, name: string) {
+    logger.info('환영 이메일 발송됨 (Mock)', { email, name });
     return true;
   }
 }
@@ -291,24 +296,40 @@ export function setupContainer() {
   logger.info('Setting up DI container...');
 
   // Repositories
+  logger.info('Registering UserRepository...');
   container.registerSingleton('UserRepository', MockUserRepository);
+  logger.info('Registering other repositories...');
   container.registerSingleton('RefreshTokenRepository', MockRefreshTokenRepository);
   container.registerSingleton('EmailVerificationRepository', MockEmailVerificationRepository);
   container.registerSingleton('LoginAttemptRepository', MockLoginAttemptRepository);
   container.registerSingleton(AuthRepository, MockAuthRepository);
 
   // Services
+  logger.info('Registering services...');
   container.registerSingleton('EmailService', MockEmailService);
   container.registerSingleton('TokenService', MockTokenService);
 
   // Use Cases
+  logger.info('Registering use cases...');
   container.registerSingleton(RegisterUseCase, RegisterUseCase);
   container.registerSingleton(LoginUseCase, LoginUseCase);
   container.registerSingleton(RefreshTokenUseCase, RefreshTokenUseCase);
   container.registerSingleton(VerifyEmailUseCase, VerifyEmailUseCase);
+  container.registerSingleton(ResendVerificationUseCase, ResendVerificationUseCase);
+  container.registerSingleton(LogoutUseCase, LogoutUseCase);
 
   // Controllers
+  logger.info('Registering controllers...');
   container.registerSingleton(AuthController, AuthController);
 
   logger.info('DI container setup completed');
+  
+  // Test registration
+  try {
+    logger.info('Testing UserRepository resolution...');
+    const userRepo = container.resolve('UserRepository');
+    logger.info('UserRepository resolved successfully');
+  } catch (error) {
+    logger.error('Failed to resolve UserRepository:', error);
+  }
 }

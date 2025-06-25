@@ -58,7 +58,7 @@ export class LoginUseCase {
 
   constructor(
     @inject('UserRepository') private userRepository: IUserRepository,
-    @inject('TokenService') private tokenService: typeof JwtService,
+    @inject('TokenService') private tokenService: any,
     @inject(AuthRepository) private authRepository: AuthRepository
   ) {}
 

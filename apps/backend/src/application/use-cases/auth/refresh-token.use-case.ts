@@ -49,7 +49,8 @@ export class RefreshTokenUseCase {
 
   constructor(
     @inject('UserRepository') private userRepository: IUserRepository,
-    @inject('TokenService') private tokenService: typeof JwtService
+    @inject('TokenService') private tokenService: any,
+    @inject(AuthRepository) private authRepository: AuthRepository
   ) {}
 
   async execute(input: RefreshTokenInput): Promise<RefreshTokenOutput> {
@@ -68,7 +69,7 @@ export class RefreshTokenUseCase {
       }
 
       // 3. DB에서 토큰 확인
-      const savedToken = await AuthRepository.findRefreshToken(validatedInput.refreshToken);
+      const savedToken = await this.authRepository.findRefreshToken(validatedInput.refreshToken);
       if (!savedToken) {
         throw new UnauthorizedError('존재하지 않는 토큰입니다');
       }
@@ -95,11 +96,11 @@ export class RefreshTokenUseCase {
       );
 
       // 7. 기존 Refresh Token 삭제
-      await AuthRepository.deleteRefreshToken(validatedInput.refreshToken);
+      await this.authRepository.deleteRefreshToken(validatedInput.refreshToken);
 
       // 8. 새로운 Refresh Token 저장
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7일
-      await AuthRepository.saveRefreshToken(
+      await this.authRepository.saveRefreshToken(
         user.id.getValue(),
         newTokens.refreshToken,
         expiresAt,
@@ -149,7 +150,9 @@ export interface LogoutOutput {
 export class LogoutUseCase {
   private readonly logger = new Logger('LogoutUseCase');
 
-  constructor() {}
+  constructor(
+    @inject(AuthRepository) private authRepository: AuthRepository
+  ) {}
 
   async execute(input: LogoutInput): Promise<LogoutOutput> {
     // 1. 입력 검증
@@ -163,7 +166,7 @@ export class LogoutUseCase {
     try {
       if (validatedInput.allDevices && validatedInput.userId) {
         // 모든 디바이스에서 로그아웃
-        await AuthRepository.deleteAllUserRefreshTokens(validatedInput.userId);
+        await this.authRepository.deleteAllUserRefreshTokens(validatedInput.userId);
         
         this.logger.info('모든 디바이스에서 로그아웃 완료', { 
           userId: validatedInput.userId 
@@ -175,7 +178,7 @@ export class LogoutUseCase {
         };
       } else if (validatedInput.refreshToken) {
         // 현재 디바이스에서만 로그아웃
-        await AuthRepository.deleteRefreshToken(validatedInput.refreshToken);
+        await this.authRepository.deleteRefreshToken(validatedInput.refreshToken);
         
         this.logger.info('로그아웃 완료');
 

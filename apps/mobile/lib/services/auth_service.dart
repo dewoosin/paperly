@@ -334,7 +334,21 @@ class AuthService {
   /// 에러 처리
   Exception _handleError(DioException error) {
     if (error.response != null) {
-      final message = error.response!.data['message'] ?? '요청 처리 중 오류가 발생했습니다';
+      // 서버 응답 구조에 맞게 에러 메시지 추출
+      String message = '요청 처리 중 오류가 발생했습니다';
+      
+      final data = error.response!.data;
+      if (data is Map<String, dynamic>) {
+        // 새로운 에러 응답 구조: { "error": { "message": "..." } }
+        if (data['error'] != null && data['error']['message'] != null) {
+          message = data['error']['message'];
+        }
+        // 기존 구조도 지원: { "message": "..." }
+        else if (data['message'] != null) {
+          message = data['message'];
+        }
+      }
+      
       return Exception(message);
     }
     

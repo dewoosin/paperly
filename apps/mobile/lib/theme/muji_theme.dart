@@ -119,6 +119,14 @@ class MujiTheme {
     color: textDark,
   );
   
+  static const mobileH4 = TextStyle(
+    fontSize: 16,
+    fontWeight: FontWeight.w500,
+    letterSpacing: -0.1,
+    height: 1.4,
+    color: textDark,
+  );
+  
   static const mobileBody = TextStyle(
     fontSize: 15,
     fontWeight: FontWeight.w400,
