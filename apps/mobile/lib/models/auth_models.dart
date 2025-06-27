@@ -53,6 +53,7 @@ class AuthTokens with _$AuthTokens {
 /// 회원가입 요청
 @freezed
 class RegisterRequest with _$RegisterRequest {
+  const RegisterRequest._();
   const factory RegisterRequest({
     required String email,
     required String password,
@@ -62,6 +63,16 @@ class RegisterRequest with _$RegisterRequest {
   }) = _RegisterRequest;
 
   factory RegisterRequest.fromJson(Map<String, dynamic> json) => _$RegisterRequestFromJson(json);
+  
+  Map<String, dynamic> toJson() {
+    return {
+      'email': email,
+      'password': password,
+      'name': name,
+      'birthDate': '${birthDate.year.toString().padLeft(4, '0')}-${birthDate.month.toString().padLeft(2, '0')}-${birthDate.day.toString().padLeft(2, '0')}',
+      'gender': gender != null ? _$GenderEnumMap[gender] : null,
+    };
+  }
 }
 
 /// 로그인 요청

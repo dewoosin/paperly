@@ -5,7 +5,7 @@ import nodemailer from 'nodemailer';
 import { IEmailService, EmailTemplate } from '../../domain/services/email.service';
 import { Email } from '../../domain/value-objects/auth.value-objects';
 import { Config } from '../config/config';
-import { logger } from '../logging/logger';
+import { Logger } from '../logging/Logger';
 import { AppError, ErrorCode } from '../../shared/errors/app-error';
 
 /**
@@ -15,6 +15,7 @@ import { AppError, ErrorCode } from '../../shared/errors/app-error';
  */
 @injectable()
 export class EmailService implements IEmailService {
+  private readonly logger = new Logger('EmailService');
   private transporter: nodemailer.Transporter;
   private readonly fromEmail: string;
   private readonly fromName: string;
@@ -51,7 +52,7 @@ export class EmailService implements IEmailService {
       }
     });
 
-    logger.info('개발용 이메일 서비스 초기화 완료', {
+    this.logger.info('개발용 이메일 서비스 초기화 완료', {
       testAccount: testAccount.user
     });
   }
@@ -89,7 +90,7 @@ export class EmailService implements IEmailService {
       html
     });
 
-    logger.info('이메일 인증 메일 발송', { email: email.value });
+    this.logger.info('이메일 인증 메일 발송', { email: email.value });
   }
 
   /**
@@ -110,7 +111,7 @@ export class EmailService implements IEmailService {
       html
     });
 
-    logger.info('비밀번호 재설정 메일 발송', { email: email.value });
+    this.logger.info('비밀번호 재설정 메일 발송', { email: email.value });
   }
 
   /**
@@ -128,7 +129,7 @@ export class EmailService implements IEmailService {
       html
     });
 
-    logger.info('환영 메일 발송', { email: email.value });
+    this.logger.info('환영 메일 발송', { email: email.value });
   }
 
   /**
@@ -136,7 +137,7 @@ export class EmailService implements IEmailService {
    */
   async sendDailyRecommendationEmail(email: Email, userName: string, recommendations: any[]): Promise<void> {
     // TODO: Day 10+ 구현
-    logger.info('일일 추천 메일 발송', { email: email.value });
+    this.logger.info('일일 추천 메일 발송', { email: email.value });
   }
 
   /**
@@ -157,14 +158,14 @@ export class EmailService implements IEmailService {
 
       // 개발 환경에서는 Ethereal Email URL 로깅
       if (this.config.get('NODE_ENV') === 'development') {
-        logger.info('이메일 미리보기 URL:', {
+        this.logger.info('이메일 미리보기 URL:', {
           url: nodemailer.getTestMessageUrl(info)
         });
       }
 
-      logger.info('이메일 발송 완료', { messageId: info.messageId });
+      this.logger.info('이메일 발송 완료', { messageId: info.messageId });
     } catch (error) {
-      logger.error('이메일 발송 실패', { error });
+      this.logger.error('이메일 발송 실패', { error });
       throw new AppError(ErrorCode.INTERNAL_ERROR, '이메일 발송에 실패했습니다');
     }
   }

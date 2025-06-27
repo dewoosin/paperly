@@ -1,6 +1,6 @@
 // apps/backend/src/domain/repositories/user.repository.ts
 
-import { User } from '../entities/user.entity';
+import { User } from '../entities/User.entity';
 import { Email } from '../value-objects/auth.value-objects';
 import { UserId } from '../value-objects/user-id.value-object';
 

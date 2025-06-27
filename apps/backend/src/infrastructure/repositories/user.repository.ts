@@ -2,7 +2,7 @@
 
 import { Pool } from 'pg';
 import { db } from '../config/database.config';
-import { User } from '../../domain/entities/user.entity';
+import { User } from '../../domain/entities/User.entity';
 import { Email } from '../../domain/value-objects/email.vo';
 import { Password } from '../../domain/value-objects/password.vo';
 import { UserId } from '../../domain/value-objects/user-id.vo';

@@ -5,7 +5,7 @@ import { AuthRepository } from '../../infrastructure/repositories/auth.repositor
 import { JwtService } from '../../infrastructure/auth/jwt.service';
 import { PasswordService } from '../../infrastructure/auth/password.service';
 import { EmailService } from '../../infrastructure/email/email.service';
-import { User } from '../../domain/entities/user.entity';
+import { User } from '../../domain/entities/User.entity';
 import { Email } from '../../domain/value-objects/email.vo';
 import { Password } from '../../domain/value-objects/password.vo';
 import { UserId } from '../../domain/value-objects/user-id.vo';

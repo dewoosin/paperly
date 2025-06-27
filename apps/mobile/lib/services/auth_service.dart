@@ -85,7 +85,7 @@ class AuthService {
           'email': request.email,
           'password': request.password,
           'name': request.name,
-          'birthDate': request.birthDate.toIso8601String(),
+          'birthDate': '${request.birthDate.year.toString().padLeft(4, '0')}-${request.birthDate.month.toString().padLeft(2, '0')}-${request.birthDate.day.toString().padLeft(2, '0')}',
           'gender': request.gender?.name,
         },
       );

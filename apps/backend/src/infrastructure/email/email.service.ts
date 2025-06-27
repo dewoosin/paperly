@@ -2,7 +2,6 @@
 
 import nodemailer, { Transporter } from 'nodemailer';
 import { config } from '../config/env.config';
-import { logger } from '../logging/logger';
 import { Logger } from '../logging/Logger';
 
 /**

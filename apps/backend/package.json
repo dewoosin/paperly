@@ -5,11 +5,16 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/main.ts",
+    "dev:wsl": "DB_HOST_OVERRIDE=$(ip route | grep default | awk '{print $3}') REDIS_HOST_OVERRIDE=$(ip route | grep default | awk '{print $3}') tsx watch src/main.ts",
+    "dev:debug": "DEBUG=* tsx watch src/main.ts",
     "build": "tsc",
     "start": "node dist/index.ts",
     "test": "jest",
     "lint": "eslint src --ext .ts",
-    "clean": "rm -rf dist node_modules"
+    "clean": "rm -rf dist node_modules",
+    "db:check": "tsx scripts/check-db.ts",
+    "test:email": "tsx scripts/test-email.ts",
+    "setup:gmail": "tsx scripts/setup-gmail.ts"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",

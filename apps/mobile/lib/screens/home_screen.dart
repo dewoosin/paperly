@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 import 'dart:math' as math;
 import '../theme/muji_theme.dart';
 import '../providers/auth_provider.dart';
+import 'obsidian_view_screen.dart';
 
 /// 홈 화면 (Day 3 테스트용 임시 화면)
 class HomeScreen extends StatefulWidget {
@@ -588,8 +589,9 @@ class _HomeScreenState extends State<HomeScreen>
               children: [
                 _buildNavItem(0, CupertinoIcons.house_fill, '홈'),
                 _buildNavItem(1, CupertinoIcons.compass, '발견'),
-                _buildNavItem(2, CupertinoIcons.bookmark, '보관'),
-                _buildNavItem(3, CupertinoIcons.person, '나'),
+                _buildSpecialNavItem(),
+                _buildNavItem(3, CupertinoIcons.bookmark, '보관'),
+                _buildNavItem(4, CupertinoIcons.person, '나'),
               ],
             ),
           ),
@@ -623,6 +625,67 @@ class _HomeScreenState extends State<HomeScreen>
               style: MujiTheme.mobileLabel.copyWith(
                 color: isSelected ? MujiTheme.sage : MujiTheme.textLight,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSpecialNavItem() {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.mediumImpact();
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const ObsidianViewScreen(),
+            fullscreenDialog: true,
+          ),
+        );
+      },
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: 56,
+        height: 56,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Animated glow effect
+            AnimatedContainer(
+              duration: const Duration(seconds: 2),
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    MujiTheme.sage.withOpacity(0.3),
+                    MujiTheme.sage.withOpacity(0.1),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+            // Main button
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: MujiTheme.sage,
+                boxShadow: [
+                  BoxShadow(
+                    color: MujiTheme.sage.withOpacity(0.4),
+                    blurRadius: 12,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Icon(
+                CupertinoIcons.graph_circle_fill,
+                color: Colors.white,
+                size: 24,
               ),
             ),
           ],

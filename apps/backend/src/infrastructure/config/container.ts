@@ -16,7 +16,8 @@ import { AuthController } from '../web/controllers/auth.controller';
 import { AuthRepository } from '../repositories/auth.repository';
 
 // Services (임시 구현)
-import { Logger } from '../logging/logger';
+import { Logger } from '../logging/Logger';
+import { RealEmailService } from '../email/real-email.service';
 
 const logger = new Logger('Container');
 
@@ -115,7 +116,7 @@ class MockEmailService {
 
 // Mock Token Service - JwtService와 호환되도록 구현
 class MockTokenService {
-  static generateTokenPair(userId: string, email: string) {
+  generateTokenPair(userId: string, email: string) {
     const timestamp = Date.now();
     logger.info('Mock: JWT 토큰 쌍 생성', { userId, email });
     
@@ -125,17 +126,17 @@ class MockTokenService {
     };
   }
   
-  static generateAccessToken(userId: string, email: string) {
+  generateAccessToken(userId: string, email: string) {
     const timestamp = Date.now();
     return `mock_access_${userId}_${timestamp}`;
   }
   
-  static generateRefreshToken(userId: string, email: string) {
+  generateRefreshToken(userId: string, email: string) {
     const timestamp = Date.now();
     return `mock_refresh_${userId}_${timestamp}`;
   }
   
-  static verifyAccessToken(token: string) {
+  verifyAccessToken(token: string) {
     logger.info('Mock: Access token 검증', { token });
     
     if (token.startsWith('mock_access_')) {
@@ -287,6 +288,20 @@ class MockAuthRepository {
       logger.info('Mock: 이메일 인증 완료됨', { token });
     }
   }
+
+  async createEmailVerificationToken(userId: string) {
+    const token = `verify_${userId}_${Date.now()}_${Math.random().toString(36)}`;
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24시간
+    
+    await this.saveEmailVerificationToken(userId, token, expiresAt);
+    
+    logger.info('Mock: 이메일 인증 토큰 생성됨', { userId, token });
+    
+    return {
+      token,
+      expiresAt
+    };
+  }
 }
 
 /**
@@ -306,8 +321,12 @@ export function setupContainer() {
 
   // Services
   logger.info('Registering services...');
-  container.registerSingleton('EmailService', MockEmailService);
-  container.registerSingleton('TokenService', MockTokenService);
+  container.register('EmailService', {
+    useClass: RealEmailService
+  });
+  container.register('TokenService', {
+    useClass: MockTokenService
+  });
 
   // Use Cases
   logger.info('Registering use cases...');

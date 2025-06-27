@@ -2,9 +2,13 @@
 
 import { z } from 'zod';
 import { config as dotenvConfig } from 'dotenv';
+import { getPlatformConfig } from './platform.config';
 
 // .env 파일 로드
 dotenvConfig();
+
+// 플랫폼별 설정 가져오기
+const platformConfig = getPlatformConfig();
 
 // Logger는 나중에 import (순환 참조 방지)
 let Logger: any;
@@ -23,7 +27,7 @@ const envSchema = z.object({
   API_PREFIX: z.string().default('/api/v1'),
   
   // 데이터베이스 설정
-  DB_HOST: z.string().default('localhost'),
+  DB_HOST: z.string().default(platformConfig.databaseHost),
   DB_PORT: z.string().transform(Number).default('5432'),
   DB_NAME: z.string().default('paperly_db'),
   DB_USER: z.string().default('paperly_user'),
@@ -31,7 +35,7 @@ const envSchema = z.object({
   DB_SSL: z.string().transform(val => val === 'true').default('false'),
   
   // Redis 설정
-  REDIS_HOST: z.string().default('localhost'),
+  REDIS_HOST: z.string().default(platformConfig.redisHost),
   REDIS_PORT: z.string().transform(Number).default('6379'),
   REDIS_PASSWORD: z.string().optional(),
   

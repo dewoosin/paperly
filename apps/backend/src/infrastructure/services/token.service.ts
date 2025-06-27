@@ -6,12 +6,12 @@ import { randomBytes } from 'crypto';
 import { ITokenService } from '../../domain/services/token.service';
 import { IRefreshTokenRepository } from '../../domain/repositories/refresh-token.repository';
 import { IEmailVerificationRepository } from '../../domain/repositories/email-verification.repository';
-import { User } from '../../domain/entities/user.entity';
+import { User } from '../../domain/entities/User.entity';
 import { Token, DeviceInfo } from '../../domain/value-objects/auth.value-objects';
 import { UserId } from '../../domain/value-objects/user-id.value-object';
 import { AppError, ErrorCode } from '../../shared/errors/app-error';
 import { Config } from '../config/config';
-import { logger } from '../logging/logger';
+import { Logger } from '../logging/Logger';
 
 /**
  * JWT 페이로드 타입
@@ -33,6 +33,7 @@ interface JwtPayload {
  */
 @injectable()
 export class TokenService implements ITokenService {
+  private readonly logger = new Logger('TokenService');
   private readonly accessTokenSecret: string;
   private readonly accessTokenExpiresIn: string = '1h'; // 1시간
   private readonly refreshTokenExpiresIn: number = 7 * 24 * 60 * 60 * 1000; // 7일 (밀리초)
@@ -69,14 +70,14 @@ export class TokenService implements ITokenService {
         expiresAt
       });
 
-      logger.info('인증 토큰 생성 완료', { userId: user.id.value });
+      this.logger.info('인증 토큰 생성 완료', { userId: user.id.value });
 
       return {
         accessToken,
         refreshToken: refreshTokenValue
       };
     } catch (error) {
-      logger.error('토큰 생성 실패', { error });
+      this.logger.error('토큰 생성 실패', { error });
       throw new AppError(ErrorCode.INTERNAL_ERROR, '토큰 생성에 실패했습니다');
     }
   }
@@ -159,14 +160,14 @@ export class TokenService implements ITokenService {
       storedToken.updateLastUsed();
       await this.refreshTokenRepository.save(storedToken);
 
-      logger.info('토큰 갱신 완료', { userId: user.id.value });
+      this.logger.info('토큰 갱신 완료', { userId: user.id.value });
 
       return newTokens;
     } catch (error) {
       if (error instanceof AppError) {
         throw error;
       }
-      logger.error('토큰 갱신 실패', { error });
+      this.logger.error('토큰 갱신 실패', { error });
       throw new AppError(ErrorCode.INTERNAL_ERROR, '토큰 갱신에 실패했습니다');
     }
   }
@@ -186,11 +187,11 @@ export class TokenService implements ITokenService {
         expiresAt
       });
 
-      logger.info('이메일 인증 토큰 생성', { userId: userId.value });
+      this.logger.info('이메일 인증 토큰 생성', { userId: userId.value });
 
       return tokenValue;
     } catch (error) {
-      logger.error('이메일 인증 토큰 생성 실패', { error });
+      this.logger.error('이메일 인증 토큰 생성 실패', { error });
       throw new AppError(ErrorCode.INTERNAL_ERROR, '이메일 인증 토큰 생성에 실패했습니다');
     }
   }
@@ -210,9 +211,9 @@ export class TokenService implements ITokenService {
   async revokeAllRefreshTokens(userId: UserId): Promise<void> {
     try {
       await this.refreshTokenRepository.deleteAllByUserId(userId);
-      logger.info('모든 Refresh Token 무효화', { userId: userId.value });
+      this.logger.info('모든 Refresh Token 무효화', { userId: userId.value });
     } catch (error) {
-      logger.error('Refresh Token 무효화 실패', { error });
+      this.logger.error('Refresh Token 무효화 실패', { error });
       throw new AppError(ErrorCode.INTERNAL_ERROR, 'Token 무효화에 실패했습니다');
     }
   }
@@ -225,10 +226,10 @@ export class TokenService implements ITokenService {
       const storedToken = await this.refreshTokenRepository.findByToken(refreshToken);
       if (storedToken) {
         await this.refreshTokenRepository.delete(storedToken.id);
-        logger.info('Refresh Token 무효화', { tokenId: storedToken.id });
+        this.logger.info('Refresh Token 무효화', { tokenId: storedToken.id });
       }
     } catch (error) {
-      logger.error('Refresh Token 무효화 실패', { error });
+      this.logger.error('Refresh Token 무효화 실패', { error });
       throw new AppError(ErrorCode.INTERNAL_ERROR, 'Token 무효화에 실패했습니다');
     }
   }

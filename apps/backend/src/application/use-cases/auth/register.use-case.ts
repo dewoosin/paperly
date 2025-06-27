@@ -6,7 +6,7 @@ import { IUserRepository } from '../../../infrastructure/repositories/user.repos
 import { EmailService } from '../../../infrastructure/email/email.service';
 import { JwtService } from '../../../infrastructure/auth/jwt.service';
 import { AuthRepository } from '../../../infrastructure/repositories/auth.repository';
-import { User } from '../../../domain/entities/user.entity';
+import { User } from '../../../domain/entities/User.entity';
 import { Email } from '../../../domain/value-objects/email.vo';
 import { Password } from '../../../domain/value-objects/password.vo';
 import { UserId } from '../../../domain/value-objects/user-id.vo';
@@ -105,7 +105,7 @@ export class RegisterUseCase {
 
       // 7. Refresh Token 저장
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7일
-      await AuthRepository.saveRefreshToken(
+      await this.authRepository.saveRefreshToken(
         user.id.getValue(),
         tokens.refreshToken,
         expiresAt
@@ -114,7 +114,7 @@ export class RegisterUseCase {
       // 8. 이메일 인증 메일 발송
       let emailVerificationSent = false;
       try {
-        const verificationToken = await AuthRepository.createEmailVerificationToken(
+        const verificationToken = await this.authRepository.createEmailVerificationToken(
           user.id.getValue()
         );
         
