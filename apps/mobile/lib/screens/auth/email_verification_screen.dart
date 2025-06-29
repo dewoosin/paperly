@@ -322,6 +322,54 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen>
                   },
                   style: MujiButtonStyle.secondary,
                 ),
+                
+                // 개발용 인증 스킵 버튼
+                if (const bool.fromEnvironment('dart.vm.product') == false) ...[
+                  const SizedBox(height: 12),
+                  MujiButton(
+                    text: '🚀 개발용: 인증 스킵하기',
+                    onPressed: () async {
+                      try {
+                        final authProvider = context.read<AuthProvider>();
+                        await authProvider.skipEmailVerification();
+                        
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                '이메일 인증을 스킵했습니다',
+                                style: MujiTheme.mobileCaption.copyWith(color: Colors.white),
+                              ),
+                              backgroundColor: MujiTheme.sage,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          );
+                          Navigator.of(context).pushReplacementNamed('/home');
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                '인증 스킵 실패: ${e.toString()}',
+                                style: MujiTheme.mobileCaption.copyWith(color: Colors.white),
+                              ),
+                              backgroundColor: Colors.red,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          );
+                        }
+                      }
+                    },
+                    style: MujiButtonStyle.primary,
+                  ),
+                ],
               ],
             ),
           ),

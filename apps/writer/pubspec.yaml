@@ -1,0 +1,55 @@
+name: paperly_writer
+description: Paperly Writer - 작가 전용 글쓰기 앱
+
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # 상태 관리
+  provider: ^6.1.1
+
+  # HTTP 통신
+  http: ^1.1.0
+
+  # 로컬 저장소
+  shared_preferences: ^2.2.2
+
+  # UI
+  google_fonts: ^6.1.0
+  cupertino_icons: ^1.0.6
+  
+  # 유틸리티
+  intl: ^0.19.0
+  
+  # 이미지 처리 (필요시)
+  image_picker: ^1.0.4
+  cached_network_image: ^3.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^3.0.0
+  build_runner: ^2.5.4
+
+flutter:
+  uses-material-design: true
+
+  # 앱 아이콘
+  # assets:
+  #   - images/
+
+  # 폰트
+  # fonts:
+  #   - family: Schyler
+  #     fonts:
+  #       - asset: fonts/Schyler-Regular.ttf
+  #       - asset: fonts/Schyler-Italic.ttf
+  #         style: italic

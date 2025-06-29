@@ -1,45 +1,87 @@
-// lib/theme/muji_theme.dart
+/// Paperly 앱 테마 정의 (무지 스타일)
+/// 
+/// 이 파일은 앱 전체의 색상, 폰트, 컴포넌트 스타일을 정의합니다.
+/// 무지(MUJI) 브랜드의 미니멀하고 자연스러운 디자인 철학을 반영합니다.
+/// 
+/// 디자인 철학:
+/// - 자연 소재에서 영감을 받은 색상 (종이, 나무, 돌, 식물)
+/// - 불필요한 장식 없는 깔끔한 디자인
+/// - 눈에 편안한 낮은 대비와 따뜻한 톤
+/// - 가독성과 사용성을 최우선으로 하는 UI
+/// 
+/// 사용법:
+/// - 색상: MujiTheme.sage, MujiTheme.textDark 등
+/// - 텍스트 스타일: MujiTheme.h1, MujiTheme.body 등
+/// - 테마: MaterialApp의 theme 속성에 MujiTheme.light 사용
 
 import 'package:flutter/material.dart';
-
-/// 무지(MUJI) 스타일 테마 정의
+/// 무지 스타일 테마 클래스
 /// 
-/// 무지의 미니멀리즘 디자인 철학을 반영한 테마입니다.
+/// 모든 색상과 스타일을 static constant로 정의하여
+/// 앱 전체에서 일관된 디자인을 유지합니다.
 class MujiTheme {
-  // 색상 팔레트
-  static const bg = Color(0xFFFCFBF7);
-  static const surface = Color(0xFFF9F7F3);
-  static const card = Color(0xFFFEFDFC);
   
-  static const textDark = Color(0xFF2C2C2C);
-  static const textBody = Color(0xFF4A4A4A);
-  static const textLight = Color(0xFF7A7A7A);
-  static const textHint = Color(0xFFB0B0B0);
+  // ============================================================================
+  // 📱 기본 배경 색상 (자연 소재 기반)
+  // ============================================================================
   
-  static const sage = Color(0xFF90A990);
-  static const sand = Color(0xFFD4A09A);
-  static const moss = Color(0xFFA8B8A0);
-  static const clay = Color(0xFFCBB5A0);
-  static const ocean = Color(0xFF9ABFD4);
-  static const lavender = Color(0xFFB5A0CB);
+  static const bg = Color(0xFFFAF9F6);           // 메인 배경: 따뜻한 오프화이트 (종이 느낌)
+  static const surface = Color(0xFFF6F5F2);      // 표면: 살짝 베이지가 감도는 화이트
+  static const card = Color(0xFFFCFCFA);         // 카드 배경: 순수한 종이 느낌
   
-  // 추가 색상 (위젯에서 필요한 것들)
-  static const white = Color(0xFFFFFFFF);
-  static const black = Color(0xFF1C1C1C);
-  static const primary = sage; // 주 색상은 sage로 설정
-  static const primaryLight = Color(0xFFA8C0A8);
-  static const primaryDark = Color(0xFF728972);
-  static const error = Color(0xFFB22222);
-  static const success = Color(0xFF228B22);
-  static const warning = Color(0xFFDAA520);
-  static const info = Color(0xFF4682B4);
-  static const border = Color(0xFFE0E0E0);
-  static const divider = Color(0xFFEEEEEE);
-  static const bgSecondary = Color(0xFFEDEAE8);
-  static const textPrimary = textDark;
-  static const textSecondary = textBody;
-  static const textTertiary = textLight;
-  static const textDisabled = Color(0xFFBCBCBC);
+  // ============================================================================
+  // 📝 텍스트 색상 (먹색 계열)
+  // ============================================================================
+  
+  static const textDark = Color(0xFF2B2A28);     // 제목, 중요 텍스트: 깊은 먹색
+  static const textBody = Color(0xFF565450);     // 본문 텍스트: 회갈색
+  static const textLight = Color(0xFF8B8A85);    // 보조 텍스트: 연한 회갈색
+  static const textHint = Color(0xFFB8B6B0);     // 힌트, 플레이스홀더: 매우 연한 회갈색
+  
+  // ============================================================================
+  // 🌿 자연 색상 팔레트 (브랜드 컬러)
+  // ============================================================================
+  
+  static const sage = Color(0xFF8FA68F);         // 세이지 그린: 메인 브랜드 컬러
+  static const bark = Color(0xFF9B8B7A);         // 나무껍질 브라운: 따뜻한 갈색
+  static const moss = Color(0xFFA3B5A3);         // 이끼 그린: 부드러운 녹색
+  static const clay = Color(0xFFD4C4B0);         // 점토 베이지: 자연스러운 베이지
+  static const stone = Color(0xFFC7C0B8);        // 돌 그레이: 중성적인 회색
+  static const paper = Color(0xFFF2EFE8);        // 종이 베이지: 따뜻한 배경색
+  
+  // ============================================================================
+  // 🔄 기존 호환성을 위한 색상 별칭
+  // ============================================================================
+  
+  static const sand = bark;                      // 모래색 = 나무껍질색
+  static const ocean = Color(0xFF9BB5C7);        // 바다색: 차분한 블루
+  static const lavender = Color(0xFFB8A8C7);     // 라벤더: 부드러운 퍼플
+  
+  // ============================================================================
+  // ⚙️ 시스템 컬러 (상태, 알림 등)
+  // ============================================================================
+  
+  static const white = Color(0xFFFFFFFF);        // 순수 화이트
+  static const black = Color(0xFF1C1C1C);        // 거의 검정 (완전한 검정보다 부드러움)
+  static const primary = sage;                   // 주 색상: 세이지 그린
+  static const primaryLight = Color(0xFFA8C0A8); // 밝은 주 색상
+  static const primaryDark = Color(0xFF728972);  // 어두운 주 색상
+  static const error = Color(0xFFB22222);        // 에러: 자연스러운 빨강
+  static const success = Color(0xFF228B22);      // 성공: 숲 녹색
+  static const warning = Color(0xFFDAA520);      // 경고: 골든로드 노랑
+  static const info = Color(0xFF4682B4);         // 정보: 강철 블루
+  static const border = Color(0xFFE0E0E0);       // 테두리: 연한 회색
+  static const divider = Color(0xFFEEEEEE);      // 구분선: 매우 연한 회색
+  static const bgSecondary = Color(0xFFEDEAE8);  // 보조 배경: 따뜻한 회색
+  
+  // ============================================================================
+  // 📄 텍스트 색상 별칭 (명확한 용도 구분)
+  // ============================================================================
+  
+  static const textPrimary = textDark;           // 주요 텍스트
+  static const textSecondary = textBody;         // 보조 텍스트
+  static const textTertiary = textLight;         // 3차 텍스트
+  static const textDisabled = Color(0xFFBCBCBC); // 비활성화된 텍스트
   
   // 간격 및 여백
   static const double spacingXxs = 4.0;

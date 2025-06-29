@@ -1,0 +1,182 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 84% 4.9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* 관리자 전용 스타일 */
+.admin-container {
+  @apply min-h-screen bg-background;
+}
+
+.admin-sidebar {
+  @apply fixed left-0 top-0 z-40 h-screen w-64 border-r bg-card transition-transform;
+}
+
+.admin-main {
+  @apply ml-64 min-h-screen bg-background;
+}
+
+.admin-header {
+  @apply border-b bg-card px-6 py-4;
+}
+
+.admin-content {
+  @apply p-6;
+}
+
+/* 보안 관련 스타일 */
+.security-alert {
+  @apply rounded-lg border p-4;
+}
+
+.security-low {
+  @apply border-green-200 bg-green-50 text-green-800;
+}
+
+.security-medium {
+  @apply border-yellow-200 bg-yellow-50 text-yellow-800;
+}
+
+.security-high {
+  @apply border-red-200 bg-red-50 text-red-800;
+}
+
+.security-critical {
+  @apply border-red-300 bg-red-100 text-red-900;
+}
+
+/* 차트 스타일 */
+.chart-container {
+  @apply h-64 w-full p-4;
+}
+
+/* 로딩 애니메이션 */
+.loading-spinner {
+  @apply animate-spin rounded-full h-8 w-8 border-b-2 border-primary;
+}
+
+/* 테이블 스타일 */
+.admin-table {
+  @apply w-full border-collapse overflow-hidden rounded-lg border border-border;
+}
+
+.admin-table th {
+  @apply bg-muted px-4 py-3 text-left text-sm font-medium text-muted-foreground;
+}
+
+.admin-table td {
+  @apply border-t border-border px-4 py-3 text-sm;
+}
+
+.admin-table tr:hover {
+  @apply bg-muted/50;
+}
+
+/* 모달 스타일 */
+.modal-overlay {
+  @apply fixed inset-0 z-50 bg-black/80;
+}
+
+.modal-content {
+  @apply fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 border bg-background p-6 shadow-lg duration-200;
+}
+
+/* 폼 스타일 */
+.form-group {
+  @apply space-y-2;
+}
+
+.form-label {
+  @apply text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70;
+}
+
+.form-input {
+  @apply flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+/* 버튼 스타일 */
+.btn {
+  @apply inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50;
+}
+
+.btn-primary {
+  @apply bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2;
+}
+
+.btn-secondary {
+  @apply bg-secondary text-secondary-foreground hover:bg-secondary/80 h-10 px-4 py-2;
+}
+
+.btn-destructive {
+  @apply bg-destructive text-destructive-foreground hover:bg-destructive/90 h-10 px-4 py-2;
+}
+
+/* 반응형 사이드바 */
+@media (max-width: 768px) {
+  .admin-sidebar {
+    @apply -translate-x-full;
+  }
+  
+  .admin-sidebar.open {
+    @apply translate-x-0;
+  }
+  
+  .admin-main {
+    @apply ml-0;
+  }
+}

@@ -15,21 +15,14 @@ final _privateConstructorUsedError = UnsupportedError(
   'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models',
 );
 
-User _$UserFromJson(Map<String, dynamic> json) {
-  return _User.fromJson(json);
-}
-
 /// @nodoc
 mixin _$User {
-  String get id => throw _privateConstructorUsedError;
-  String get email => throw _privateConstructorUsedError;
-  String get name => throw _privateConstructorUsedError;
-  bool get emailVerified => throw _privateConstructorUsedError;
-  DateTime? get birthDate => throw _privateConstructorUsedError;
+  String get id => throw _privateConstructorUsedError; // 사용자 고유 ID
+  String get email => throw _privateConstructorUsedError; // 이메일 주소
+  String get name => throw _privateConstructorUsedError; // 사용자 이름
+  bool get emailVerified => throw _privateConstructorUsedError; // 이메일 인증 여부
+  DateTime? get birthDate => throw _privateConstructorUsedError; // 생년월일 (선택)
   Gender? get gender => throw _privateConstructorUsedError;
-
-  /// Serializes this User to a JSON map.
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
   /// Create a copy of User
   /// with the given fields replaced by the non-null parameter values.
@@ -175,7 +168,7 @@ class __$$UserImplCopyWithImpl<$Res>
 }
 
 /// @nodoc
-@JsonSerializable()
+
 class _$UserImpl implements _User {
   const _$UserImpl({
     required this.id,
@@ -186,19 +179,21 @@ class _$UserImpl implements _User {
     this.gender,
   });
 
-  factory _$UserImpl.fromJson(Map<String, dynamic> json) =>
-      _$$UserImplFromJson(json);
-
   @override
   final String id;
+  // 사용자 고유 ID
   @override
   final String email;
+  // 이메일 주소
   @override
   final String name;
+  // 사용자 이름
   @override
   final bool emailVerified;
+  // 이메일 인증 여부
   @override
   final DateTime? birthDate;
+  // 생년월일 (선택)
   @override
   final Gender? gender;
 
@@ -222,7 +217,6 @@ class _$UserImpl implements _User {
             (identical(other.gender, gender) || other.gender == gender));
   }
 
-  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(
     runtimeType,
@@ -241,11 +235,6 @@ class _$UserImpl implements _User {
   @pragma('vm:prefer-inline')
   _$$UserImplCopyWith<_$UserImpl> get copyWith =>
       __$$UserImplCopyWithImpl<_$UserImpl>(this, _$identity);
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$UserImplToJson(this);
-  }
 }
 
 abstract class _User implements User {
@@ -258,18 +247,16 @@ abstract class _User implements User {
     final Gender? gender,
   }) = _$UserImpl;
 
-  factory _User.fromJson(Map<String, dynamic> json) = _$UserImpl.fromJson;
-
   @override
-  String get id;
+  String get id; // 사용자 고유 ID
   @override
-  String get email;
+  String get email; // 이메일 주소
   @override
-  String get name;
+  String get name; // 사용자 이름
   @override
-  bool get emailVerified;
+  bool get emailVerified; // 이메일 인증 여부
   @override
-  DateTime? get birthDate;
+  DateTime? get birthDate; // 생년월일 (선택)
   @override
   Gender? get gender;
 
@@ -287,7 +274,7 @@ AuthTokens _$AuthTokensFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$AuthTokens {
-  String get accessToken => throw _privateConstructorUsedError;
+  String get accessToken => throw _privateConstructorUsedError; // 단기 인증 토큰
   String get refreshToken => throw _privateConstructorUsedError;
 
   /// Serializes this AuthTokens to a JSON map.
@@ -395,6 +382,7 @@ class _$AuthTokensImpl implements _AuthTokens {
 
   @override
   final String accessToken;
+  // 단기 인증 토큰
   @override
   final String refreshToken;
 
@@ -442,7 +430,7 @@ abstract class _AuthTokens implements AuthTokens {
       _$AuthTokensImpl.fromJson;
 
   @override
-  String get accessToken;
+  String get accessToken; // 단기 인증 토큰
   @override
   String get refreshToken;
 
@@ -460,11 +448,12 @@ RegisterRequest _$RegisterRequestFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$RegisterRequest {
-  String get email => throw _privateConstructorUsedError;
-  String get password => throw _privateConstructorUsedError;
-  String get name => throw _privateConstructorUsedError;
-  DateTime get birthDate => throw _privateConstructorUsedError;
-  Gender? get gender => throw _privateConstructorUsedError;
+  String get email => throw _privateConstructorUsedError; // 사용자 이메일
+  String get password => throw _privateConstructorUsedError; // 비밀번호
+  String get name => throw _privateConstructorUsedError; // 사용자 이름
+  DateTime get birthDate => throw _privateConstructorUsedError; // 생년월일
+  Gender? get gender => throw _privateConstructorUsedError; // 성별 (선택)
+  String get userType => throw _privateConstructorUsedError;
 
   /// Serializes this RegisterRequest to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -489,6 +478,7 @@ abstract class $RegisterRequestCopyWith<$Res> {
     String name,
     DateTime birthDate,
     Gender? gender,
+    String userType,
   });
 }
 
@@ -512,6 +502,7 @@ class _$RegisterRequestCopyWithImpl<$Res, $Val extends RegisterRequest>
     Object? name = null,
     Object? birthDate = null,
     Object? gender = freezed,
+    Object? userType = null,
   }) {
     return _then(
       _value.copyWith(
@@ -535,6 +526,10 @@ class _$RegisterRequestCopyWithImpl<$Res, $Val extends RegisterRequest>
                 ? _value.gender
                 : gender // ignore: cast_nullable_to_non_nullable
                       as Gender?,
+            userType: null == userType
+                ? _value.userType
+                : userType // ignore: cast_nullable_to_non_nullable
+                      as String,
           )
           as $Val,
     );
@@ -556,6 +551,7 @@ abstract class _$$RegisterRequestImplCopyWith<$Res>
     String name,
     DateTime birthDate,
     Gender? gender,
+    String userType,
   });
 }
 
@@ -578,6 +574,7 @@ class __$$RegisterRequestImplCopyWithImpl<$Res>
     Object? name = null,
     Object? birthDate = null,
     Object? gender = freezed,
+    Object? userType = null,
   }) {
     return _then(
       _$RegisterRequestImpl(
@@ -601,6 +598,10 @@ class __$$RegisterRequestImplCopyWithImpl<$Res>
             ? _value.gender
             : gender // ignore: cast_nullable_to_non_nullable
                   as Gender?,
+        userType: null == userType
+            ? _value.userType
+            : userType // ignore: cast_nullable_to_non_nullable
+                  as String,
       ),
     );
   }
@@ -608,32 +609,41 @@ class __$$RegisterRequestImplCopyWithImpl<$Res>
 
 /// @nodoc
 @JsonSerializable()
-class _$RegisterRequestImpl implements _RegisterRequest {
+class _$RegisterRequestImpl extends _RegisterRequest {
   const _$RegisterRequestImpl({
     required this.email,
     required this.password,
     required this.name,
     required this.birthDate,
     this.gender,
-  });
+    this.userType = 'reader',
+  }) : super._();
 
   factory _$RegisterRequestImpl.fromJson(Map<String, dynamic> json) =>
       _$$RegisterRequestImplFromJson(json);
 
   @override
   final String email;
+  // 사용자 이메일
   @override
   final String password;
+  // 비밀번호
   @override
   final String name;
+  // 사용자 이름
   @override
   final DateTime birthDate;
+  // 생년월일
   @override
   final Gender? gender;
+  // 성별 (선택)
+  @override
+  @JsonKey()
+  final String userType;
 
   @override
   String toString() {
-    return 'RegisterRequest(email: $email, password: $password, name: $name, birthDate: $birthDate, gender: $gender)';
+    return 'RegisterRequest(email: $email, password: $password, name: $name, birthDate: $birthDate, gender: $gender, userType: $userType)';
   }
 
   @override
@@ -647,13 +657,22 @@ class _$RegisterRequestImpl implements _RegisterRequest {
             (identical(other.name, name) || other.name == name) &&
             (identical(other.birthDate, birthDate) ||
                 other.birthDate == birthDate) &&
-            (identical(other.gender, gender) || other.gender == gender));
+            (identical(other.gender, gender) || other.gender == gender) &&
+            (identical(other.userType, userType) ||
+                other.userType == userType));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, email, password, name, birthDate, gender);
+  int get hashCode => Object.hash(
+    runtimeType,
+    email,
+    password,
+    name,
+    birthDate,
+    gender,
+    userType,
+  );
 
   /// Create a copy of RegisterRequest
   /// with the given fields replaced by the non-null parameter values.
@@ -672,28 +691,32 @@ class _$RegisterRequestImpl implements _RegisterRequest {
   }
 }
 
-abstract class _RegisterRequest implements RegisterRequest {
+abstract class _RegisterRequest extends RegisterRequest {
   const factory _RegisterRequest({
     required final String email,
     required final String password,
     required final String name,
     required final DateTime birthDate,
     final Gender? gender,
+    final String userType,
   }) = _$RegisterRequestImpl;
+  const _RegisterRequest._() : super._();
 
   factory _RegisterRequest.fromJson(Map<String, dynamic> json) =
       _$RegisterRequestImpl.fromJson;
 
   @override
-  String get email;
+  String get email; // 사용자 이메일
   @override
-  String get password;
+  String get password; // 비밀번호
   @override
-  String get name;
+  String get name; // 사용자 이름
   @override
-  DateTime get birthDate;
+  DateTime get birthDate; // 생년월일
   @override
-  Gender? get gender;
+  Gender? get gender; // 성별 (선택)
+  @override
+  String get userType;
 
   /// Create a copy of RegisterRequest
   /// with the given fields replaced by the non-null parameter values.
@@ -709,7 +732,7 @@ LoginRequest _$LoginRequestFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$LoginRequest {
-  String get email => throw _privateConstructorUsedError;
+  String get email => throw _privateConstructorUsedError; // 사용자 이메일
   String get password => throw _privateConstructorUsedError;
 
   /// Serializes this LoginRequest to a JSON map.
@@ -814,6 +837,7 @@ class _$LoginRequestImpl implements _LoginRequest {
 
   @override
   final String email;
+  // 사용자 이메일
   @override
   final String password;
 
@@ -860,7 +884,7 @@ abstract class _LoginRequest implements LoginRequest {
       _$LoginRequestImpl.fromJson;
 
   @override
-  String get email;
+  String get email; // 사용자 이메일
   @override
   String get password;
 
@@ -872,18 +896,11 @@ abstract class _LoginRequest implements LoginRequest {
       throw _privateConstructorUsedError;
 }
 
-AuthResponse _$AuthResponseFromJson(Map<String, dynamic> json) {
-  return _AuthResponse.fromJson(json);
-}
-
 /// @nodoc
 mixin _$AuthResponse {
-  User get user => throw _privateConstructorUsedError;
-  AuthTokens get tokens => throw _privateConstructorUsedError;
+  User get user => throw _privateConstructorUsedError; // 사용자 정보
+  AuthTokens get tokens => throw _privateConstructorUsedError; // 인증 토큰들
   bool? get emailVerificationSent => throw _privateConstructorUsedError;
-
-  /// Serializes this AuthResponse to a JSON map.
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
 
   /// Create a copy of AuthResponse
   /// with the given fields replaced by the non-null parameter values.
@@ -1019,7 +1036,7 @@ class __$$AuthResponseImplCopyWithImpl<$Res>
 }
 
 /// @nodoc
-@JsonSerializable()
+
 class _$AuthResponseImpl implements _AuthResponse {
   const _$AuthResponseImpl({
     required this.user,
@@ -1027,13 +1044,12 @@ class _$AuthResponseImpl implements _AuthResponse {
     this.emailVerificationSent,
   });
 
-  factory _$AuthResponseImpl.fromJson(Map<String, dynamic> json) =>
-      _$$AuthResponseImplFromJson(json);
-
   @override
   final User user;
+  // 사용자 정보
   @override
   final AuthTokens tokens;
+  // 인증 토큰들
   @override
   final bool? emailVerificationSent;
 
@@ -1053,7 +1069,6 @@ class _$AuthResponseImpl implements _AuthResponse {
                 other.emailVerificationSent == emailVerificationSent));
   }
 
-  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode =>
       Object.hash(runtimeType, user, tokens, emailVerificationSent);
@@ -1065,11 +1080,6 @@ class _$AuthResponseImpl implements _AuthResponse {
   @pragma('vm:prefer-inline')
   _$$AuthResponseImplCopyWith<_$AuthResponseImpl> get copyWith =>
       __$$AuthResponseImplCopyWithImpl<_$AuthResponseImpl>(this, _$identity);
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$AuthResponseImplToJson(this);
-  }
 }
 
 abstract class _AuthResponse implements AuthResponse {
@@ -1079,13 +1089,10 @@ abstract class _AuthResponse implements AuthResponse {
     final bool? emailVerificationSent,
   }) = _$AuthResponseImpl;
 
-  factory _AuthResponse.fromJson(Map<String, dynamic> json) =
-      _$AuthResponseImpl.fromJson;
-
   @override
-  User get user;
+  User get user; // 사용자 정보
   @override
-  AuthTokens get tokens;
+  AuthTokens get tokens; // 인증 토큰들
   @override
   bool? get emailVerificationSent;
 

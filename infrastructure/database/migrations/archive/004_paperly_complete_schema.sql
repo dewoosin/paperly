@@ -3,6 +3,9 @@
 -- 개발일정 40일 완성 계획 기반
 -- =============================================
 
+-- paperly 스키마 사용 설정
+SET search_path TO paperly, public;
+
 -- UUID 확장 활성화
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
@@ -11,7 +14,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- =============================================
 
 -- 시스템 설정 테이블
-CREATE TABLE system_configs (
+CREATE TABLE paperly.system_configs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     config_key VARCHAR(100) NOT NULL UNIQUE,
     config_value TEXT NOT NULL,
@@ -23,20 +26,20 @@ CREATE TABLE system_configs (
 );
 
 -- 공통코드 테이블
-CREATE TABLE common_codes (
+CREATE TABLE paperly.common_codes (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     code_group VARCHAR(50) NOT NULL, -- USER_STATUS, ARTICLE_STATUS 등
     code_value VARCHAR(50) NOT NULL,
     code_name VARCHAR(100) NOT NULL,
     sort_order INTEGER DEFAULT 0,
     is_active BOOLEAN DEFAULT true,
-    parent_code_id UUID REFERENCES common_codes(id),
+    parent_code_id UUID REFERENCES paperly.common_codes(id),
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(code_group, code_value)
 );
 
 -- 시스템 메시지 테이블 (에러메시지, 알림메시지 등)
-CREATE TABLE system_messages (
+CREATE TABLE paperly.system_messages (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     message_key VARCHAR(100) NOT NULL UNIQUE,
     message_ko TEXT NOT NULL, -- 한국어 메시지
@@ -51,7 +54,7 @@ CREATE TABLE system_messages (
 -- =============================================
 
 -- 사용자 기본 정보
-CREATE TABLE users (
+CREATE TABLE paperly.users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
@@ -70,9 +73,9 @@ CREATE TABLE users (
 );
 
 -- 사용자 프로필 확장 정보
-CREATE TABLE user_profiles (
+CREATE TABLE paperly.user_profiles (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES paperly.users(id) ON DELETE CASCADE,
     occupation VARCHAR(100), -- 직업
     education_level VARCHAR(50), -- 학력
     location VARCHAR(100), -- 지역
@@ -86,9 +89,9 @@ CREATE TABLE user_profiles (
 );
 
 -- 사용자 설정
-CREATE TABLE user_settings (
+CREATE TABLE paperly.user_settings (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES paperly.users(id) ON DELETE CASCADE,
     -- 알림 설정
     email_notifications BOOLEAN DEFAULT true,
     push_notifications BOOLEAN DEFAULT true,
@@ -106,10 +109,10 @@ CREATE TABLE user_settings (
 );
 
 -- 사용자 관심사
-CREATE TABLE user_interests (
+CREATE TABLE paperly.user_interests (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    category_id UUID NOT NULL REFERENCES categories(id),
+    user_id UUID NOT NULL REFERENCES paperly.users(id) ON DELETE CASCADE,
+    category_id UUID NOT NULL REFERENCES paperly.categories(id),
     interest_level INTEGER DEFAULT 5 CHECK (interest_level BETWEEN 1 AND 10), -- 관심도 1-10
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, category_id)
@@ -120,9 +123,9 @@ CREATE TABLE user_interests (
 -- =============================================
 
 -- 리프레시 토큰
-CREATE TABLE refresh_tokens (
+CREATE TABLE paperly.refresh_tokens (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES paperly.users(id) ON DELETE CASCADE,
     token_hash VARCHAR(255) NOT NULL UNIQUE,
     device_id VARCHAR(255),
     device_name VARCHAR(100),
@@ -134,9 +137,9 @@ CREATE TABLE refresh_tokens (
 );
 
 -- 이메일 인증 토큰
-CREATE TABLE email_verification_tokens (
+CREATE TABLE paperly.email_verification_tokens (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES paperly.users(id) ON DELETE CASCADE,
     token VARCHAR(100) NOT NULL UNIQUE,
     email VARCHAR(255) NOT NULL,
     expires_at TIMESTAMPTZ NOT NULL,
@@ -145,9 +148,9 @@ CREATE TABLE email_verification_tokens (
 );
 
 -- 비밀번호 재설정 토큰
-CREATE TABLE password_reset_tokens (
+CREATE TABLE paperly.password_reset_tokens (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES paperly.users(id) ON DELETE CASCADE,
     token VARCHAR(100) NOT NULL UNIQUE,
     expires_at TIMESTAMPTZ NOT NULL,
     used_at TIMESTAMPTZ,
@@ -155,9 +158,9 @@ CREATE TABLE password_reset_tokens (
 );
 
 -- 사용자 로그인 로그
-CREATE TABLE user_login_logs (
+CREATE TABLE paperly.user_login_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    user_id UUID REFERENCES paperly.users(id) ON DELETE SET NULL,
     email VARCHAR(255),
     ip_address INET,
     user_agent TEXT,
@@ -171,12 +174,12 @@ CREATE TABLE user_login_logs (
 -- =============================================
 
 -- 카테고리 (계층적 구조)
-CREATE TABLE categories (
+CREATE TABLE paperly.categories (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(100) NOT NULL,
     slug VARCHAR(100) NOT NULL UNIQUE,
     description TEXT,
-    parent_id UUID REFERENCES categories(id),
+    parent_id UUID REFERENCES paperly.categories(id),
     icon_name VARCHAR(50), -- 아이콘 이름
     color_code VARCHAR(7), -- 색상 코드 (#FF0000)
     sort_order INTEGER DEFAULT 0,
@@ -188,7 +191,7 @@ CREATE TABLE categories (
 );
 
 -- 태그
-CREATE TABLE tags (
+CREATE TABLE paperly.tags (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(50) NOT NULL UNIQUE,
     slug VARCHAR(50) NOT NULL UNIQUE,
@@ -199,7 +202,7 @@ CREATE TABLE tags (
 );
 
 -- 기사 메타데이터
-CREATE TABLE articles (
+CREATE TABLE paperly.articles (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     title VARCHAR(200) NOT NULL,
     slug VARCHAR(200) NOT NULL UNIQUE,
@@ -209,7 +212,7 @@ CREATE TABLE articles (
     author_name VARCHAR(100),
     author_bio TEXT,
     source_url TEXT, -- 원본 기사 URL
-    category_id UUID NOT NULL REFERENCES categories(id),
+    category_id UUID NOT NULL REFERENCES paperly.categories(id),
     -- 콘텐츠 메타데이터
     word_count INTEGER DEFAULT 0,
     estimated_reading_time INTEGER DEFAULT 0, -- 분 단위
@@ -228,18 +231,18 @@ CREATE TABLE articles (
 );
 
 -- 기사-태그 연결
-CREATE TABLE article_tags (
+CREATE TABLE paperly.article_tags (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    article_id UUID NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
-    tag_id UUID NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+    article_id UUID NOT NULL REFERENCES paperly.articles(id) ON DELETE CASCADE,
+    tag_id UUID NOT NULL REFERENCES paperly.tags(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(article_id, tag_id)
 );
 
 -- 기사 통계
-CREATE TABLE article_stats (
+CREATE TABLE paperly.article_stats (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    article_id UUID NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+    article_id UUID NOT NULL REFERENCES paperly.articles(id) ON DELETE CASCADE,
     view_count INTEGER DEFAULT 0,
     unique_view_count INTEGER DEFAULT 0,
     like_count INTEGER DEFAULT 0,
@@ -254,9 +257,9 @@ CREATE TABLE article_stats (
 );
 
 -- 기사 키워드 (SEO 및 검색용)
-CREATE TABLE article_keywords (
+CREATE TABLE paperly.article_keywords (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    article_id UUID NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+    article_id UUID NOT NULL REFERENCES paperly.articles(id) ON DELETE CASCADE,
     keyword VARCHAR(100) NOT NULL,
     relevance_score DECIMAL(3,2) DEFAULT 1.00, -- 관련도 점수
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -267,10 +270,10 @@ CREATE TABLE article_keywords (
 -- =============================================
 
 -- 읽기 세션
-CREATE TABLE reading_sessions (
+CREATE TABLE paperly.reading_sessions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    article_id UUID NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES paperly.users(id) ON DELETE CASCADE,
+    article_id UUID NOT NULL REFERENCES paperly.articles(id) ON DELETE CASCADE,
     device_type VARCHAR(20) DEFAULT 'mobile' CHECK (device_type IN ('mobile', 'tablet', 'desktop', 'web')),
     started_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     ended_at TIMESTAMPTZ,
@@ -282,10 +285,10 @@ CREATE TABLE reading_sessions (
 );
 
 -- 기사 북마크
-CREATE TABLE bookmarks (
+CREATE TABLE paperly.bookmarks (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    article_id UUID NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES paperly.users(id) ON DELETE CASCADE,
+    article_id UUID NOT NULL REFERENCES paperly.articles(id) ON DELETE CASCADE,
     folder_name VARCHAR(50) DEFAULT 'default', -- 북마크 폴더
     notes TEXT, -- 개인 메모
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -293,19 +296,19 @@ CREATE TABLE bookmarks (
 );
 
 -- 기사 좋아요
-[ICREATE TABLE article_likes (
+[ICREATE TABLE paperly.article_likes (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    article_id UUID NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES paperly.users(id) ON DELETE CASCADE,
+    article_id UUID NOT NULL REFERENCES paperly.articles(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, article_id)
 );
 
 -- 기사 평점
-CREATE TABLE article_ratings (
+CREATE TABLE paperly.article_ratings (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    article_id UUID NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES paperly.users(id) ON DELETE CASCADE,
+    article_id UUID NOT NULL REFERENCES paperly.articles(id) ON DELETE CASCADE,
     rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
     review_text TEXT,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -314,10 +317,10 @@ CREATE TABLE article_ratings (
 );
 
 -- 읽기 하이라이트
-CREATE TABLE reading_highlights (
+CREATE TABLE paperly.reading_highlights (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    article_id UUID NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES paperly.users(id) ON DELETE CASCADE,
+    article_id UUID NOT NULL REFERENCES paperly.articles(id) ON DELETE CASCADE,
     highlighted_text TEXT NOT NULL,
     start_position INTEGER NOT NULL, -- 텍스트 시작 위치
     end_position INTEGER NOT NULL, -- 텍스트 끝 위치
@@ -327,10 +330,10 @@ CREATE TABLE reading_highlights (
 );
 
 [O-- 사용자 기사 상호작용 로그
-CREATE TABLE article_interactions (
+CREATE TABLE paperly.article_interactions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    article_id UUID NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES paperly.users(id) ON DELETE CASCADE,
+    article_id UUID NOT NULL REFERENCES paperly.articles(id) ON DELETE CASCADE,
     interaction_type VARCHAR(20) NOT NULL CHECK (interaction_type IN ('view', 'like', 'bookmark', 'share', 'comment', 'rating')),
     interaction_data JSONB, -- 추가 데이터 (공유 플랫폼, 평점 등)
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -341,9 +344,9 @@ CREATE TABLE article_interactions (
 -- =============================================
 
 -- 사용자 선호도 프로필 (AI 학습 결과)
-CREATE TABLE user_preference_profiles (
+CREATE TABLE paperly.user_preference_profiles (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES paperly.users(id) ON DELETE CASCADE,
     category_preferences JSONB, -- 카테고리별 선호도 점수
     tag_preferences JSONB, -- 태그별 선호도 점수
     reading_time_preferences JSONB, -- 읽기 시간대 선호도
@@ -355,10 +358,10 @@ CREATE TABLE user_preference_profiles (
 );
 
 -- 일일 추천 기사 (배치 처리 결과)
-CREATE TABLE daily_recommendations (
+CREATE TABLE paperly.daily_recommendations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    article_id UUID NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES paperly.users(id) ON DELETE CASCADE,
+    article_id UUID NOT NULL REFERENCES paperly.articles(id) ON DELETE CASCADE,
     recommendation_date DATE NOT NULL,
     recommendation_score DECIMAL(5,3) NOT NULL, -- 추천 점수 (0.000-1.000)
     recommendation_reason JSONB, -- 추천 이유 (category_match, user_history 등)
@@ -370,10 +373,10 @@ CREATE TABLE daily_recommendations (
 );
 
 -- 실시간 추천 큐
-CREATE TABLE recommendation_queue (
+CREATE TABLE paperly.recommendation_queue (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    article_id UUID NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES paperly.users(id) ON DELETE CASCADE,
+    article_id UUID NOT NULL REFERENCES paperly.articles(id) ON DELETE CASCADE,
     recommendation_type VARCHAR(30) NOT NULL CHECK (recommendation_type IN ('trending', 'personalized', 'similar', 'category_based', 'collaborative')),
     score DECIMAL(5,3) NOT NULL,
     context_data JSONB, -- 추천 컨텍스트 데이터
@@ -383,11 +386,11 @@ CREATE TABLE recommendation_queue (
 );
 
 -- 연령대별 선호도 통계 (집단 지성)
-CREATE TABLE demographic_preferences (
+CREATE TABLE paperly.demographic_preferences (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     age_group VARCHAR(20) NOT NULL, -- 20s, 30s, 40s, 50s+
     gender VARCHAR(10),
-    category_id UUID REFERENCES categories(id),
+    category_id UUID REFERENCES paperly.categories(id),
     preference_score DECIMAL(5,3) NOT NULL,
     interaction_count INTEGER DEFAULT 0,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -399,7 +402,7 @@ CREATE TABLE demographic_preferences (
 -- =============================================
 
 -- 구독 플랜
-CREATE TABLE subscription_plans (
+CREATE TABLE paperly.subscription_plans (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(50) NOT NULL,
     description TEXT,
@@ -413,10 +416,10 @@ CREATE TABLE subscription_plans (
 );
 
 -- 사용자 구독
-CREATE TABLE user_subscriptions (
+CREATE TABLE paperly.user_subscriptions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    plan_id UUID NOT NULL REFERENCES subscription_plans(id),
+    user_id UUID NOT NULL REFERENCES paperly.users(id) ON DELETE CASCADE,
+    plan_id UUID NOT NULL REFERENCES paperly.subscription_plans(id),
     status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'cancelled', 'expired', 'paused')),
     billing_cycle VARCHAR(10) DEFAULT 'monthly' CHECK (billing_cycle IN ('monthly', 'yearly')),
     price_paid DECIMAL(10,2) NOT NULL,
@@ -430,10 +433,10 @@ CREATE TABLE user_subscriptions (
 );
 
 -- 결제 내역
-CREATE TABLE payment_transactions (
+CREATE TABLE paperly.payment_transactions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    subscription_id UUID REFERENCES user_subscriptions(id),
+    user_id UUID NOT NULL REFERENCES paperly.users(id) ON DELETE CASCADE,
+    subscription_id UUID REFERENCES paperly.user_subscriptions(id),
     transaction_type VARCHAR(20) NOT NULL CHECK (transaction_type IN ('payment', 'refund', 'chargeback')),
     amount DECIMAL(10,2) NOT NULL,
     currency VARCHAR(3) DEFAULT 'KRW',
@@ -449,7 +452,7 @@ CREATE TABLE payment_transactions (
 -- =============================================
 
 -- 알림 템플릿
-CREATE TABLE notification_templates (
+CREATE TABLE paperly.notification_templates (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     template_key VARCHAR(100) NOT NULL UNIQUE,
     name VARCHAR(100) NOT NULL,
@@ -462,9 +465,9 @@ CREATE TABLE notification_templates (
 [I);
 
 -- 사용자 알림
-CREATE TABLE user_notifications (
+CREATE TABLE paperly.user_notifications (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES paperly.users(id) ON DELETE CASCADE,
     title VARCHAR(200) NOT NULL,
     message TEXT NOT NULL,
     notification_type VARCHAR(20) NOT NULL CHECK (notification_type IN ('push', 'email', 'in_app')),
@@ -476,9 +479,9 @@ CREATE TABLE user_notifications (
 );
 
 -- 이메일 발송 로그
-CREATE TABLE email_logs (
+CREATE TABLE paperly.email_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    user_id UUID REFERENCES paperly.users(id) ON DELETE SET NULL,
     email_address VARCHAR(255) NOT NULL,
     subject VARCHAR(200) NOT NULL,
     template_key VARCHAR(100),
@@ -494,9 +497,9 @@ CREATE TABLE email_logs (
 -- =============================================
 
 -- 사용자 활동 로그
-CREATE TABLE user_activity_logs (
+CREATE TABLE paperly.user_activity_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    user_id UUID REFERENCES paperly.users(id) ON DELETE SET NULL,
     action VARCHAR(50) NOT NULL, -- login, logout, read_article, bookmark, etc.
     resource_type VARCHAR(50), -- article, category, user, etc.
     resource_id UUID,
@@ -507,7 +510,7 @@ CREATE TABLE user_activity_logs (
 );
 
 -- 시스템 에러 로그
-CREATE TABLE system_error_logs (
+CREATE TABLE paperly.system_error_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     error_level VARCHAR(10) NOT NULL CHECK (error_level IN ('info', 'warning', 'error', 'critical')),
     error_code VARCHAR(50),
@@ -515,14 +518,14 @@ CREATE TABLE system_error_logs (
     stack_trace TEXT,
     request_url TEXT,
     request_method VARCHAR(10),
-    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    user_id UUID REFERENCES paperly.users(id) ON DELETE SET NULL,
     ip_address INET,
     user_agent TEXT,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 일일 통계 요약
-CREATE TABLE daily_stats (
+CREATE TABLE paperly.daily_stats (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     stats_date DATE NOT NULL UNIQUE,
     active_users INTEGER DEFAULT 0,
@@ -540,43 +543,43 @@ CREATE TABLE daily_stats (
 -- =============================================
 
 -- 사용자 관련 인덱스
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_status ON users(status);
-CREATE INDEX idx_users_created_at ON users(created_at);
+CREATE INDEX IF NOT EXISTS idx_users_email ON paperly.users(email);
+CREATE INDEX IF NOT EXISTS idx_users_status ON paperly.users(status);
+CREATE INDEX IF NOT EXISTS idx_users_created_at ON paperly.users(created_at);
 
 -- 기사 관련 인덱스
-CREATE INDEX idx_articles_category_id ON articles(category_id);
-CREATE INDEX idx_articles_status ON articles(status);
-CREATE INDEX idx_articles_published_at ON articles(published_at);
-CREATE INDEX idx_articles_is_featured ON articles(is_featured);
-CREATE INDEX idx_articles_title_search ON articles USING gin(to_tsvector('korean', title));
-CREATE INDEX idx_articles_content_search ON articles USING gin(to_tsvector('korean', summary));
+CREATE INDEX IF NOT EXISTS idx_articles_category_id ON paperly.articles(category_id);
+CREATE INDEX IF NOT EXISTS idx_articles_status ON paperly.articles(status);
+CREATE INDEX IF NOT EXISTS idx_articles_published_at ON paperly.articles(published_at);
+CREATE INDEX IF NOT EXISTS idx_articles_is_featured ON paperly.articles(is_featured);
+CREATE INDEX IF NOT EXISTS idx_articles_title_search ON paperly.articles USING gin(to_tsvector('korean', title));
+CREATE INDEX IF NOT EXISTS idx_articles_content_search ON paperly.articles USING gin(to_tsvector('korean', summary));
 
 -- 읽기 추적 인덱스
-CREATE INDEX idx_reading_sessions_user_id ON reading_sessions(user_id);
-CREATE INDEX idx_reading_sessions_article_id ON reading_sessions(article_id);
-CREATE INDEX idx_reading_sessions_started_at ON reading_sessions(started_at);
+CREATE INDEX IF NOT EXISTS idx_reading_sessions_user_id ON paperly.reading_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_reading_sessions_article_id ON paperly.reading_sessions(article_id);
+CREATE INDEX IF NOT EXISTS idx_reading_sessions_started_at ON paperly.reading_sessions(started_at);
 
 -- 추천 시스템 인덱스
-CREATE INDEX idx_daily_recommendations_user_date ON daily_recommendations(user_id, recommendation_date);
-CREATE INDEX idx_recommendation_queue_user_id ON recommendation_queue(user_id);
-CREATE INDEX idx_recommendation_queue_expires_at ON recommendation_queue(expires_at);
+CREATE INDEX IF NOT EXISTS idx_daily_recommendations_user_date ON paperly.daily_recommendations(user_id, recommendation_date);
+CREATE INDEX IF NOT EXISTS idx_recommendation_queue_user_id ON paperly.recommendation_queue(user_id);
+CREATE INDEX IF NOT EXISTS idx_recommendation_queue_expires_at ON paperly.recommendation_queue(expires_at);
 
 -- 알림 인덱스
-CREATE INDEX idx_user_notifications_user_id ON user_notifications(user_id);
-CREATE INDEX idx_user_notifications_is_read ON user_notifications(is_read);
+CREATE INDEX IF NOT EXISTS idx_user_notifications_user_id ON paperly.user_notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_notifications_is_read ON paperly.user_notifications(is_read);
 
 -- 활동 로그 인덱스
-CREATE INDEX idx_user_activity_logs_user_id ON user_activity_logs(user_id);
-CREATE INDEX idx_user_activity_logs_action ON user_activity_logs(action);
-CREATE INDEX idx_user_activity_logs_created_at ON user_activity_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_user_activity_logs_user_id ON paperly.user_activity_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_activity_logs_action ON paperly.user_activity_logs(action);
+CREATE INDEX IF NOT EXISTS idx_user_activity_logs_created_at ON paperly.user_activity_logs(created_at);
 
 -- =============================================
 -- 트리거 함수 생성
 -- =============================================
 
 -- updated_at 자동 업데이트 함수
-CREATE OR REPLACE FUNCTION update_updated_at_column()
+CREATE OR REPLACE FUNCTION paperly.update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
     NEW.updated_at = CURRENT_TIMESTAMP;
@@ -585,16 +588,16 @@ END;
 $$ language 'plpgsql';
 
 -- updated_at 트리거 생성
-CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_user_profiles_updated_at BEFORE UPDATE ON user_profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_user_settings_updated_at BEFORE UPDATE ON user_settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_categories_updated_at BEFORE UPDATE ON categories FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_articles_updated_at BEFORE UPDATE ON articles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_article_ratings_updated_at BEFORE UPDATE ON article_ratings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_user_subscriptions_updated_at BEFORE UPDATE ON user_subscriptions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON paperly.users FOR EACH ROW EXECUTE FUNCTION paperly.update_updated_at_column();
+CREATE TRIGGER update_user_profiles_updated_at BEFORE UPDATE ON paperly.user_profiles FOR EACH ROW EXECUTE FUNCTION paperly.update_updated_at_column();
+CREATE TRIGGER update_user_settings_updated_at BEFORE UPDATE ON paperly.user_settings FOR EACH ROW EXECUTE FUNCTION paperly.update_updated_at_column();
+CREATE TRIGGER update_categories_updated_at BEFORE UPDATE ON paperly.categories FOR EACH ROW EXECUTE FUNCTION paperly.update_updated_at_column();
+CREATE TRIGGER update_articles_updated_at BEFORE UPDATE ON paperly.articles FOR EACH ROW EXECUTE FUNCTION paperly.update_updated_at_column();
+CREATE TRIGGER update_article_ratings_updated_at BEFORE UPDATE ON paperly.article_ratings FOR EACH ROW EXECUTE FUNCTION paperly.update_updated_at_column();
+CREATE TRIGGER update_user_subscriptions_updated_at BEFORE UPDATE ON paperly.user_subscriptions FOR EACH ROW EXECUTE FUNCTION paperly.update_updated_at_column();
 
 -- 기사 통계 업데이트 함수
-CREATE OR REPLACE FUNCTION update_article_stats()
+CREATE OR REPLACE FUNCTION paperly.update_article_stats()
 RETURNS TRIGGER AS $$
 BEGIN
     IF TG_OP = 'INSERT' THEN
@@ -614,15 +617,15 @@ $$ language 'plpgsql';
 
 -- 기사 상호작용 통계 트리거
 CREATE TRIGGER update_article_stats_trigger 
-    AFTER INSERT ON article_interactions 
-    FOR EACH ROW EXECUTE FUNCTION update_article_stats();
+    AFTER INSERT ON paperly.article_interactions 
+    FOR EACH ROW EXECUTE FUNCTION paperly.update_article_stats();
 
 -- =============================================
 -- 기본 데이터 삽입
 -- =============================================
 
 -- 시스템 설정 기본 데이터
-INSERT INTO system_configs (config_key, config_value, description, config_type, is_public) VALUES
+INSERT INTO paperly.system_configs (config_key, config_value, description, config_type, is_public) VALUES
 ('app_name', 'Paperly', '앱 이름', 'string', true),
 ('app_version', '1.0.0', '앱 버전', 'string', true),
 ('max_daily_free_articles', '3', '무료 사용자 일일 기사 제한', 'number', false),
@@ -630,7 +633,7 @@ INSERT INTO system_configs (config_key, config_value, description, config_type, 
 ('ai_model_version', 'v1.0', 'AI 추천 모델 버전', 'string', false);
 
 -- 공통코드 기본 데이터
-INSERT INTO common_codes (code_group, code_value, code_name, sort_order) VALUES
+INSERT INTO paperly.common_codes (code_group, code_value, code_name, sort_order) VALUES
 ('USER_STATUS', 'ACTIVE', '활성', 1),
 ('USER_STATUS', 'INACTIVE', '비활성', 2),
 ('USER_STATUS', 'SUSPENDED', '정지', 3),
@@ -646,7 +649,7 @@ INSERT INTO common_codes (code_group, code_value, code_name, sort_order) VALUES
 ('DIFFICULTY_LEVEL', '5', '매우 어려움', 5);
 
 -- 카테고리 기본 데이터
-INSERT INTO categories (name, slug, description, icon_name, color_code, sort_order) VALUES
+INSERT INTO paperly.categories (name, slug, description, icon_name, color_code, sort_order) VALUES
 ('기술', 'technology', 'IT, 프로그래밍, 인공지능, 과학기술', 'code', '#007ACC', 1),
 ('비즈니스', 'business', '경영, 마케팅, 창업, 경제', 'briefcase', '#28A745', 2),
 ('인문학', 'humanities', '철학, 역사, 문학, 예술', 'book', '#6F42C1', 3),
@@ -657,7 +660,7 @@ INSERT INTO categories (name, slug, description, icon_name, color_code, sort_ord
 ('문화', 'culture', '영화, 음악, 예술, 엔터테인먼트', 'palette', '#DC3545', 8);
 
 -- 태그 기본 데이터
-INSERT INTO tags (name, slug, description, color_code) VALUES
+INSERT INTO paperly.tags (name, slug, description, color_code) VALUES
 ('AI', 'ai', '인공지능', '#007ACC'),
 ('머신러닝', 'machine-learning', '기계학습', '#007ACC'),
 ('블록체인', 'blockchain', '블록체인 기술', '#F39C12'),
@@ -679,13 +682,13 @@ INSERT INTO tags (name, slug, description, color_code) VALUES
 ('리더십', 'leadership', '리더십', '#28A745');
 
 -- 구독 플랜 기본 데이터
-INSERT INTO subscription_plans (name, description, price_monthly, price_yearly, features, max_daily_articles) VALUES
+INSERT INTO paperly.subscription_plans (name, description, price_monthly, price_yearly, features, max_daily_articles) VALUES
 ('무료', '기본 기능 제공', 0.00, 0.00, '{"daily_articles": 3, "bookmarks": true, "basic_recommendations": true}', 3),
 ('프리미엄', '모든 기능 이용 가능', 9900.00, 99000.00, '{"unlimited_articles": true, "advanced_ai": true, "priority_support": true, "offline_reading": true}', -1),
 ('프로', '전문가를 위한 고급 기능', 19900.00, 199000.00, '{"everything_in_premium": true, "api_access": true, "custom_categories": true, "analytics": true}', -1);
 
 -- 알림 템플릿 기본 데이터
-INSERT INTO notification_templates (template_key, name, title_template, body_template, notification_type) VALUES
+INSERT INTO paperly.notification_templates (template_key, name, title_template, body_template, notification_type) VALUES
 ('daily_recommendation', '일일 추천', '오늘의 맞춤 기사가 준비되었어요!', '{{user_name}}님을 위한 {{article_count}}개의 새로운 기사를 확인해보세요.', 'push'),
 ('reading_streak', '연속 읽기 달성', '{{streak_days}}일 연속 읽기 달성! 🎉', '꾸준한 학습 습관을 유지하고 계시네요. 계속 화이팅!', 'push'),
 ('weekly_summary', '주간 읽기 요약', '이번 주 읽기 활동 요약', '{{articles_read}}개 기사를 읽고 {{reading_time}}분을 학습에 투자하셨습니다.', 'email'),
@@ -696,7 +699,7 @@ INSERT INTO notification_templates (template_key, name, title_template, body_tem
 -- =============================================
 
 -- 사용자별 읽기 통계 뷰
-CREATE VIEW user_reading_stats AS
+CREATE VIEW paperly.user_reading_stats AS
 SELECT 
     u.id as user_id,
     u.name,
@@ -706,15 +709,15 @@ SELECT
     COALESCE(SUM(rs.duration_seconds), 0) as total_reading_time,
     COUNT(b.id) as total_bookmarks,
     COUNT(al.id) as total_likes
-FROM users u
-LEFT JOIN reading_sessions rs ON u.id = rs.user_id
-LEFT JOIN bookmarks b ON u.id = b.user_id
-LEFT JOIN article_likes al ON u.id = al.user_id
+FROM paperly.users u
+LEFT JOIN paperly.reading_sessions rs ON u.id = rs.user_id
+LEFT JOIN paperly.bookmarks b ON u.id = b.user_id
+LEFT JOIN paperly.article_likes al ON u.id = al.user_id
 WHERE u.status = 'active'
 GROUP BY u.id, u.name;
 
 -- 인기 기사 뷰
-CREATE VIEW popular_articles AS
+CREATE VIEW paperly.popular_articles AS
 SELECT 
     a.*,
     c.name as category_name,
@@ -723,9 +726,9 @@ SELECT
     ast.bookmark_count,
     ast.average_rating,
     ast.completion_rate
-FROM articles a
-JOIN categories c ON a.category_id = c.id
-JOIN article_stats ast ON a.id = ast.article_id
+FROM paperly.articles a
+JOIN paperly.categories c ON a.category_id = c.id
+JOIN paperly.article_stats ast ON a.id = ast.article_id
 WHERE a.status = 'published'
 ORDER BY 
     (ast.view_count * 0.3 + ast.like_count * 0.4 + ast.bookmark_count * 0.3) DESC;
@@ -735,11 +738,11 @@ ORDER BY
 -- =============================================
 
 -- 읽기 세션 테이블 월별 파티셔닝 준비
--- CREATE TABLE reading_sessions_2024_01 PARTITION OF reading_sessions
+-- CREATE TABLE paperly.reading_sessions_2024_01 PARTITION OF reading_sessions
 --     FOR VALUES FROM ('2024-01-01') TO ('2024-02-01');
 
 -- 활동 로그 테이블 월별 파티셔닝 준비  
--- CREATE TABLE user_activity_logs_2024_01 PARTITION OF user_activity_logs
+-- CREATE TABLE paperly.user_activity_logs_2024_01 PARTITION OF user_activity_logs
 --     FOR VALUES FROM ('2024-01-01') TO ('2024-02-01');
 
 -- =============================================
