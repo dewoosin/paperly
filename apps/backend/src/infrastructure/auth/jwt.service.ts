@@ -18,14 +18,35 @@ export class JwtService {
    * 
    * @param userId - 사용자 ID
    * @param email - 사용자 이메일
+   * @param userType - 사용자 타입 (reader/writer/admin)
+   * @param userCode - 사용자 코드 (RD0001, WR0001 등)
+   * @param role - 사용자 역할 (선택사항)
+   * @param permissions - 사용자 권한 목록 (선택사항)
    * @returns 생성된 access token
    */
-  static generateAccessToken(userId: string, email: string): string {
+  static generateAccessToken(
+    userId: string, 
+    email: string, 
+    userType: string,
+    userCode: string,
+    role?: string, 
+    permissions?: string[]
+  ): string {
     const payload: JwtPayload = {
       userId,
       email,
+      userType,
+      userCode,
       type: 'access',
     };
+
+    if (role) {
+      payload.role = role;
+    }
+
+    if (permissions && permissions.length > 0) {
+      payload.permissions = permissions;
+    }
 
     return jwt.sign(payload, jwtConfig.accessTokenSecret, {
       expiresIn: jwtConfig.accessTokenExpiresIn,
@@ -39,14 +60,35 @@ export class JwtService {
    * 
    * @param userId - 사용자 ID
    * @param email - 사용자 이메일
+   * @param userType - 사용자 타입 (reader/writer/admin)
+   * @param userCode - 사용자 코드 (RD0001, WR0001 등)
+   * @param role - 사용자 역할 (선택사항)
+   * @param permissions - 사용자 권한 목록 (선택사항)
    * @returns 생성된 refresh token
    */
-  static generateRefreshToken(userId: string, email: string): string {
+  static generateRefreshToken(
+    userId: string, 
+    email: string, 
+    userType: string,
+    userCode: string,
+    role?: string, 
+    permissions?: string[]
+  ): string {
     const payload: JwtPayload = {
       userId,
       email,
+      userType,
+      userCode,
       type: 'refresh',
     };
+
+    if (role) {
+      payload.role = role;
+    }
+
+    if (permissions && permissions.length > 0) {
+      payload.permissions = permissions;
+    }
 
     return jwt.sign(payload, jwtConfig.refreshTokenSecret, {
       expiresIn: jwtConfig.refreshTokenExpiresIn,
@@ -60,15 +102,26 @@ export class JwtService {
    * 
    * @param userId - 사용자 ID
    * @param email - 사용자 이메일
+   * @param userType - 사용자 타입 (reader/writer/admin)
+   * @param userCode - 사용자 코드 (RD0001, WR0001 등)
+   * @param role - 사용자 역할 (선택사항)
+   * @param permissions - 사용자 권한 목록 (선택사항)
    * @returns 토큰 쌍
    */
-  static generateTokenPair(userId: string, email: string): {
+  static generateTokenPair(
+    userId: string, 
+    email: string, 
+    userType: string,
+    userCode: string,
+    role?: string, 
+    permissions?: string[]
+  ): {
     accessToken: string;
     refreshToken: string;
   } {
     return {
-      accessToken: this.generateAccessToken(userId, email),
-      refreshToken: this.generateRefreshToken(userId, email),
+      accessToken: this.generateAccessToken(userId, email, userType, userCode, role, permissions),
+      refreshToken: this.generateRefreshToken(userId, email, userType, userCode, role, permissions),
     };
   }
 

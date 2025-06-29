@@ -7,10 +7,10 @@ import compression from 'compression';
 import morgan from 'morgan';
 import { config } from '../../config/env.config';
 import { morganStream } from '../../logging/Logger';
-import { errorHandler } from './middlewares/error.middleware';
-import { notFoundHandler } from './middlewares/notFound.middleware';
+import { errorMiddleware, notFoundMiddleware } from './middlewares/error.middleware';
 import { rateLimiter } from './middlewares/rateLimit.middleware';
 import { requestId } from './middlewares/requestId.middleware';
+import { requestLogger } from './middlewares/request-logger.middleware';
 import { apiRouter } from '../routes';
 
 export function createApp(): Application {
@@ -54,6 +54,9 @@ export function createApp(): Application {
   // 요청 ID 미들웨어
   app.use(requestId);
 
+  // 상세 요청 로깅
+  app.use(requestLogger);
+
   // HTTP 로깅
   app.use(morgan('combined', { stream: morganStream }));
 
@@ -81,10 +84,10 @@ export function createApp(): Application {
   }
 
   // 404 핸들러
-  app.use(notFoundHandler);
+  app.use(notFoundMiddleware);
 
   // 글로벌 에러 핸들러
-  app.use(errorHandler);
+  app.use(errorMiddleware);
 
   return app;
 }

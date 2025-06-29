@@ -1,6 +1,6 @@
 // /Users/workspace/paperly/apps/backend/src/infrastructure/web/routes/auth.routes.ts
 
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { container } from 'tsyringe';
 import { AuthController } from '../controllers/auth.controller';
 import { authMiddleware } from '../middleware/auth.middleware';
@@ -26,28 +26,28 @@ export function createAuthRoutes(): Router {
   router.post(
     '/register',
     rateLimiter({ windowMs: 15 * 60 * 1000, max: 5 }), // 15분에 5회
-    asyncHandler((req, res, next) => authController.router.handle(req, res, next))
+    asyncHandler((req: Request, res: Response, next: NextFunction) => authController.router(req, res, next))
   );
 
   // POST /api/v1/auth/login - 로그인
   router.post(
     '/login',
     strictRateLimiter, // 15분에 5회
-    asyncHandler((req, res, next) => authController.router.handle(req, res, next))
+    asyncHandler((req: Request, res: Response, next: NextFunction) => authController.router(req, res, next))
   );
 
   // GET /api/v1/auth/verify-email - 이메일 인증
   router.get(
     '/verify-email',
     rateLimiter({ windowMs: 60 * 1000, max: 10 }), // 1분에 10회
-    asyncHandler((req, res, next) => authController.router.handle(req, res, next))
+    asyncHandler((req: Request, res: Response, next: NextFunction) => authController.router(req, res, next))
   );
 
   // POST /api/v1/auth/refresh - 토큰 갱신
   router.post(
     '/refresh',
     rateLimiter({ windowMs: 60 * 1000, max: 10 }), // 1분에 10회
-    asyncHandler((req, res, next) => authController.router.handle(req, res, next))
+    asyncHandler((req: Request, res: Response, next: NextFunction) => authController.router(req, res, next))
   );
 
   /**
@@ -58,7 +58,7 @@ export function createAuthRoutes(): Router {
   router.post(
     '/logout',
     authMiddleware,
-    asyncHandler((req, res, next) => authController.router.handle(req, res, next))
+    asyncHandler((req: Request, res: Response, next: NextFunction) => authController.router(req, res, next))
   );
 
   // POST /api/v1/auth/resend-verification - 인증 메일 재발송
@@ -66,8 +66,16 @@ export function createAuthRoutes(): Router {
     '/resend-verification',
     authMiddleware,
     emailRateLimiter, // 1시간에 3회
-    asyncHandler((req, res, next) => authController.router.handle(req, res, next))
+    asyncHandler((req: Request, res: Response, next: NextFunction) => authController.router(req, res, next))
   );
+
+  // POST /api/v1/auth/skip-verification - 이메일 인증 스킵 (개발용)
+  if (process.env.NODE_ENV !== 'production') {
+    router.post(
+      '/skip-verification',
+      asyncHandler((req: Request, res: Response, next: NextFunction) => authController.router(req, res, next))
+    );
+  }
 
   // 실제로는 authController의 라우트를 사용
   router.use('/', authController.router);

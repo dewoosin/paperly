@@ -8,6 +8,9 @@ import { AuthRepository } from '../../../infrastructure/repositories/auth.reposi
 import { UserId } from '../../../domain/value-objects/user-id.vo';
 import { UnauthorizedError } from '../../../shared/errors';
 import { Logger } from '../../../infrastructure/logging/Logger';
+import { SecurityValidator, FieldType, InputContext } from '../../../infrastructure/security/validators';
+import { SecuritySanitizer, SanitizationContext, SQLSanitizationContext } from '../../../infrastructure/security/sanitizers';
+import { MESSAGE_CODES } from '../../../shared/constants/message-codes';
 
 /**
  * 토큰 갱신 입력 스키마
@@ -54,51 +57,105 @@ export class RefreshTokenUseCase {
   ) {}
 
   async execute(input: RefreshTokenInput): Promise<RefreshTokenOutput> {
-    // 1. 입력 검증
-    const validatedInput = RefreshTokenInputSchema.parse(input);
+    // 1. 입력 데이터 보안 검증
+    const securityValidation = SecurityValidator.validateAll(JSON.stringify(input), {
+      fieldType: FieldType.TEXT,
+      inputContext: InputContext.USER_INPUT,
+      fieldName: 'refreshTokenInput'
+    });
+
+    if (!securityValidation.isValid) {
+      this.logger.warn('토큰 갱신 입력 보안 위협 감지', {
+        threats: securityValidation.xssResult.threats.concat(
+          securityValidation.sqlResult.threats,
+          securityValidation.pathResult.threats
+        ),
+        severity: securityValidation.overallSeverity
+      });
+      const error = new UnauthorizedError('입력 데이터에 보안 위협이 감지되었습니다');
+      error.messageCode = MESSAGE_CODES.SECURITY.SUSPICIOUS_ACTIVITY;
+      throw error;
+    }
+
+    // 개별 필드별 보안 검증 및 새니타이징
+    const sanitizedInput = {
+      refreshToken: SecuritySanitizer.sanitizeAll(input.refreshToken, {
+        htmlContext: SanitizationContext.PLAIN_TEXT,
+        sqlContext: SQLSanitizationContext.STRING_LITERAL,
+        fieldName: 'refreshToken'
+      }).finalValue,
+      deviceInfo: input.deviceInfo ? {
+        deviceId: input.deviceInfo.deviceId ? SecuritySanitizer.sanitizeAll(input.deviceInfo.deviceId, {
+          htmlContext: SanitizationContext.PLAIN_TEXT,
+          sqlContext: SQLSanitizationContext.STRING_LITERAL,
+          fieldName: 'deviceId'
+        }).finalValue : undefined,
+        userAgent: input.deviceInfo.userAgent ? SecuritySanitizer.sanitizeAll(input.deviceInfo.userAgent, {
+          htmlContext: SanitizationContext.PLAIN_TEXT,
+          sqlContext: SQLSanitizationContext.STRING_LITERAL,
+          fieldName: 'userAgent'
+        }).finalValue : undefined,
+        ipAddress: input.deviceInfo.ipAddress ? SecuritySanitizer.sanitizeAll(input.deviceInfo.ipAddress, {
+          htmlContext: SanitizationContext.PLAIN_TEXT,
+          sqlContext: SQLSanitizationContext.STRING_LITERAL,
+          fieldName: 'ipAddress'
+        }).finalValue : undefined
+      } : undefined
+    };
+
+    // 2. 입력 검증
+    const validatedInput = RefreshTokenInputSchema.parse(sanitizedInput);
     
-    this.logger.info('토큰 갱신 시도');
+    this.logger.info('토큰 갱신 시도', { securityCheck: 'passed' });
 
     try {
-      // 2. Refresh Token 검증
+      // 3. Refresh Token 검증
       let decodedToken;
       try {
         decodedToken = this.tokenService.verifyRefreshToken(validatedInput.refreshToken);
-      } catch (error) {
-        throw new UnauthorizedError('유효하지 않은 Refresh Token입니다');
+      } catch (tokenError) {
+        const error = new UnauthorizedError('유효하지 않은 Refresh Token입니다');
+        error.messageCode = MESSAGE_CODES.AUTH.INVALID_REFRESH_TOKEN;
+        throw error;
       }
 
-      // 3. DB에서 토큰 확인
+      // 4. DB에서 토큰 확인
       const savedToken = await this.authRepository.findRefreshToken(validatedInput.refreshToken);
       if (!savedToken) {
-        throw new UnauthorizedError('존재하지 않는 토큰입니다');
+        const error = new UnauthorizedError('존재하지 않는 토큰입니다');
+        error.messageCode = MESSAGE_CODES.AUTH.INVALID_REFRESH_TOKEN;
+        throw error;
       }
 
-      // 4. 토큰의 사용자 ID 일치 확인
+      // 5. 토큰의 사용자 ID 일치 확인
       if (savedToken.userId !== decodedToken.userId) {
         this.logger.warn('토큰 사용자 ID 불일치', {
           savedUserId: savedToken.userId,
           tokenUserId: decodedToken.userId
         });
-        throw new UnauthorizedError('토큰 정보가 일치하지 않습니다');
+        const error = new UnauthorizedError('토큰 정보가 일치하지 않습니다');
+        error.messageCode = MESSAGE_CODES.AUTH.INVALID_TOKEN;
+        throw error;
       }
 
-      // 5. 사용자 조회
+      // 6. 사용자 조회
       const user = await this.userRepository.findById(UserId.from(decodedToken.userId));
       if (!user) {
-        throw new UnauthorizedError('사용자를 찾을 수 없습니다');
+        const error = new UnauthorizedError('사용자를 찾을 수 없습니다');
+        error.messageCode = MESSAGE_CODES.USER.NOT_FOUND;
+        throw error;
       }
 
-      // 6. 새로운 토큰 쌍 생성
+      // 7. 새로운 토큰 쌍 생성
       const newTokens = this.tokenService.generateTokenPair(
         user.id.getValue(),
         user.email.getValue()
       );
 
-      // 7. 기존 Refresh Token 삭제
+      // 8. 기존 Refresh Token 삭제
       await this.authRepository.deleteRefreshToken(validatedInput.refreshToken);
 
-      // 8. 새로운 Refresh Token 저장
+      // 9. 새로운 Refresh Token 저장
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7일
       await this.authRepository.saveRefreshToken(
         user.id.getValue(),

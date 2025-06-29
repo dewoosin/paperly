@@ -6,21 +6,25 @@
  * HTTP 상태 코드와 매핑되는 비즈니스 에러들을 정의합니다.
  */
 
+// import { MessageCode } from '../constants/message-codes';
+
 /**
  * 기본 에러 클래스
  * 모든 커스텀 에러의 부모 클래스
  */
 export abstract class BaseError extends Error {
-    public readonly code: string;
+    public code: string;
     public readonly statusCode: number;
     public readonly timestamp: Date;
     public readonly details?: any;
+    public readonly messageCode?: string;
   
     constructor(
       message: string,
       code: string,
       statusCode: number,
-      details?: any
+      details?: any,
+      messageCode?: string
     ) {
       super(message);
       this.name = this.constructor.name;
@@ -28,6 +32,7 @@ export abstract class BaseError extends Error {
       this.statusCode = statusCode;
       this.timestamp = new Date();
       this.details = details;
+      this.messageCode = messageCode;
   
       // Error 클래스를 상속할 때 필요한 처리
       Object.setPrototypeOf(this, new.target.prototype);
@@ -42,6 +47,7 @@ export abstract class BaseError extends Error {
         statusCode: this.statusCode,
         timestamp: this.timestamp,
         details: this.details,
+        messageCode: this.messageCode,
       };
     }
   }
@@ -51,8 +57,8 @@ export abstract class BaseError extends Error {
    * 잘못된 요청 데이터
    */
   export class BadRequestError extends BaseError {
-    constructor(message: string, details?: any) {
-      super(message, 'BAD_REQUEST', 400, details);
+    constructor(message: string, details?: any, messageCode?: string) {
+      super(message, 'BAD_REQUEST', 400, details, messageCode);
     }
   }
   
@@ -142,7 +148,7 @@ export abstract class BaseError extends Error {
   export class DatabaseError extends InternalServerError {
     constructor(message: string = '데이터베이스 오류가 발생했습니다', details?: any) {
       super(message, details);
-      this.code = 'DATABASE_ERROR';
+      (this as any).code = 'DATABASE_ERROR';
     }
   }
   
@@ -152,7 +158,7 @@ export abstract class BaseError extends Error {
   export class ExternalServiceError extends InternalServerError {
     constructor(service: string, message: string, details?: any) {
       super(`외부 서비스(${service}) 오류: ${message}`, details);
-      this.code = 'EXTERNAL_SERVICE_ERROR';
+      (this as any).code = 'EXTERNAL_SERVICE_ERROR';
     }
   }
   
@@ -160,9 +166,9 @@ export abstract class BaseError extends Error {
    * 검증 에러
    */
   export class ValidationError extends BadRequestError {
-    constructor(message: string, details?: any) {
-      super(message, details);
-      this.code = 'VALIDATION_ERROR';
+    constructor(message: string, details?: any, messageCode?: string) {
+      super(message, details, messageCode);
+      (this as any).code = 'VALIDATION_ERROR';
     }
   }
   
@@ -172,7 +178,7 @@ export abstract class BaseError extends Error {
   export class AuthenticationError extends UnauthorizedError {
     constructor(message: string = '인증에 실패했습니다', details?: any) {
       super(message, details);
-      this.code = 'AUTHENTICATION_ERROR';
+      (this as any).code = 'AUTHENTICATION_ERROR';
     }
   }
   
@@ -182,7 +188,7 @@ export abstract class BaseError extends Error {
   export class TokenExpiredError extends UnauthorizedError {
     constructor(message: string = '토큰이 만료되었습니다', details?: any) {
       super(message, details);
-      this.code = 'TOKEN_EXPIRED';
+      (this as any).code = 'TOKEN_EXPIRED';
     }
   }
   
@@ -192,6 +198,6 @@ export abstract class BaseError extends Error {
   export class InvalidTokenError extends UnauthorizedError {
     constructor(message: string = '유효하지 않은 토큰입니다', details?: any) {
       super(message, details);
-      this.code = 'INVALID_TOKEN';
+      (this as any).code = 'INVALID_TOKEN';
     }
   }

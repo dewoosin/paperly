@@ -22,7 +22,8 @@ import {
   ConflictError,
   NotFoundError,
 } from '../../shared/errors';
-import { logger } from '../../infrastructure/logging/logger';
+import { Logger } from '../../infrastructure/logging/Logger';
+import { MESSAGE_CODES } from '../../shared/constants/message-codes';
 
 /**
  * 인증 관련 유스케이스
@@ -30,6 +31,8 @@ import { logger } from '../../infrastructure/logging/logger';
  * 회원가입, 로그인, 토큰 갱신 등의 비즈니스 로직을 담당합니다.
  */
 export class AuthUseCases {
+  private readonly logger = new Logger('AuthUseCases');
+
   constructor(
     private readonly userRepository: IUserRepository,
     private readonly emailService?: EmailService
@@ -46,13 +49,15 @@ export class AuthUseCases {
     request: RegisterRequest,
     deviceInfo?: { deviceId?: string; userAgent?: string; ipAddress?: string }
   ): Promise<AuthResponse> {
-    logger.info('회원가입 시작', { email: request.email });
+    this.logger.info('회원가입 시작', { email: request.email });
 
     // 1. 이메일 중복 확인
     const email = new Email(request.email);
     const existingUser = await this.userRepository.findByEmail(email);
     if (existingUser) {
-      throw new ConflictError('이미 사용 중인 이메일입니다');
+      const error = new ConflictError('이미 사용 중인 이메일입니다');
+      error.messageCode = MESSAGE_CODES.AUTH.EMAIL_EXISTS;
+      throw error;
     }
 
     // 2. 비밀번호 강도 검증
@@ -143,13 +148,17 @@ export class AuthUseCases {
     const email = new Email(request.email);
     const user = await this.userRepository.findByEmail(email);
     if (!user) {
-      throw new UnauthorizedError('이메일 또는 비밀번호가 올바르지 않습니다');
+      const error = new UnauthorizedError('이메일 또는 비밀번호가 올바르지 않습니다');
+      error.messageCode = MESSAGE_CODES.AUTH.INVALID_CREDENTIALS;
+      throw error;
     }
 
     // 2. 비밀번호 검증
     const isPasswordValid = await user.password.verify(request.password);
     if (!isPasswordValid) {
-      throw new UnauthorizedError('이메일 또는 비밀번호가 올바르지 않습니다');
+      const error = new UnauthorizedError('이메일 또는 비밀번호가 올바르지 않습니다');
+      error.messageCode = MESSAGE_CODES.AUTH.INVALID_CREDENTIALS;
+      throw error;
     }
 
     // 3. JWT 토큰 생성
@@ -196,13 +205,17 @@ export class AuthUseCases {
     // 2. DB에서 토큰 확인
     const savedToken = await AuthRepository.findRefreshToken(request.refreshToken);
     if (!savedToken) {
-      throw new UnauthorizedError('유효하지 않은 토큰입니다');
+      const error = new UnauthorizedError('유효하지 않은 토큰입니다');
+      error.messageCode = MESSAGE_CODES.AUTH.INVALID_REFRESH_TOKEN;
+      throw error;
     }
 
     // 3. 사용자 조회
     const user = await this.userRepository.findById(new UserId(decodedToken.userId));
     if (!user) {
-      throw new UnauthorizedError('사용자를 찾을 수 없습니다');
+      const error = new UnauthorizedError('사용자를 찾을 수 없습니다');
+      error.messageCode = MESSAGE_CODES.USER.NOT_FOUND;
+      throw error;
     }
 
     // 4. 기존 토큰 삭제
@@ -273,7 +286,9 @@ export class AuthUseCases {
     // 1. 토큰 조회
     const verificationToken = await AuthRepository.findEmailVerificationToken(token);
     if (!verificationToken) {
-      throw new BadRequestError('유효하지 않은 인증 토큰입니다');
+      const error = new BadRequestError('유효하지 않은 인증 토큰입니다');
+      error.messageCode = MESSAGE_CODES.AUTH.INVALID_VERIFICATION_CODE;
+      throw error;
     }
 
     // 2. 사용자 이메일 인증 상태 업데이트
@@ -299,12 +314,16 @@ export class AuthUseCases {
     // 1. 사용자 조회
     const user = await this.userRepository.findById(new UserId(userId));
     if (!user) {
-      throw new NotFoundError('사용자를 찾을 수 없습니다');
+      const error = new NotFoundError('사용자를 찾을 수 없습니다');
+      error.messageCode = MESSAGE_CODES.USER.NOT_FOUND;
+      throw error;
     }
 
     // 2. 이미 인증된 경우
     if (user.emailVerified) {
-      throw new BadRequestError('이미 이메일 인증이 완료되었습니다');
+      const error = new BadRequestError('이미 이메일 인증이 완료되었습니다');
+      error.messageCode = MESSAGE_CODES.AUTH.EMAIL_VERIFIED;
+      throw error;
     }
 
     // 3. 새로운 인증 토큰 생성

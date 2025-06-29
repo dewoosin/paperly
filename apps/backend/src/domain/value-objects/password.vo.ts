@@ -1,8 +1,8 @@
 // /Users/workspace/paperly/apps/backend/src/domain/value-objects/password.vo.ts
 
-import bcrypt from 'bcrypt';
-import { BadRequestError } from '../../shared/errors';
-import { PasswordService } from '../../infrastructure/auth/password.service';
+import * as bcrypt from 'bcrypt';
+import { BadRequestError } from '../../shared/errors/index';
+import { MESSAGE_CODES } from '../../shared/constants/message-codes';
 
 /**
  * Password Value Object
@@ -38,20 +38,23 @@ export class Password {
     // 기본 검증
     if (!plainPassword || plainPassword.length < this.MIN_LENGTH) {
       throw new BadRequestError(
-        `비밀번호는 최소 ${this.MIN_LENGTH}자 이상이어야 합니다`
+        `Password must be at least ${this.MIN_LENGTH} characters long`,
+        undefined,
+        MESSAGE_CODES.VALIDATION.PASSWORD_TOO_SHORT
       );
     }
 
     if (plainPassword.length > this.MAX_LENGTH) {
       throw new BadRequestError(
-        `비밀번호는 ${this.MAX_LENGTH}자를 초과할 수 없습니다`
+        `Password cannot exceed ${this.MAX_LENGTH} characters`,
+        undefined,
+        MESSAGE_CODES.VALIDATION.PASSWORD_COMPLEXITY
       );
     }
 
     // 강도 검증
-    const strengthCheck = PasswordService.validateStrength(plainPassword);
-    if (!strengthCheck.isValid) {
-      throw new BadRequestError(strengthCheck.errors.join(', '));
+    if (!this.isStrong(plainPassword)) {
+      throw new BadRequestError('Password must contain uppercase, lowercase, number, and special character', undefined, MESSAGE_CODES.VALIDATION.PASSWORD_COMPLEXITY);
     }
 
     // 해싱
@@ -68,7 +71,7 @@ export class Password {
    */
   static fromHash(hashedValue: string): Password {
     if (!hashedValue) {
-      throw new BadRequestError('해시된 비밀번호가 필요합니다');
+      throw new BadRequestError('Hashed password is required', undefined, MESSAGE_CODES.VALIDATION.REQUIRED_FIELD_MISSING);
     }
     return new Password(hashedValue);
   }
@@ -98,5 +101,19 @@ export class Password {
    */
   equals(other: Password): boolean {
     return this.hashedValue === other.hashedValue;
+  }
+
+  /**
+   * 비밀번호 강도 검증 (간소화 버전)
+   * 최소 8자, 대문자, 소문자, 숫자, 특수문자 포함
+   */
+  private static isStrong(password: string): boolean {
+    const minLength = password.length >= this.MIN_LENGTH;
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumber = /\d/.test(password);
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+
+    return minLength && hasUpperCase && hasLowerCase && hasNumber && hasSpecialChar;
   }
 }

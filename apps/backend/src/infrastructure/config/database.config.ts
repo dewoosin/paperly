@@ -172,6 +172,9 @@ export class DatabaseConnection {
   private async testConnection(): Promise<void> {
     const client = await this.getClient();
     try {
+      // paperly 스키마로 search_path 설정
+      await client.query('SET search_path TO paperly, public');
+      
       const result = await client.query('SELECT NOW()');
       this.logger.info('Database connection test successful', {
         serverTime: result.rows[0].now,
@@ -201,6 +204,9 @@ export class DatabaseConnection {
 
     try {
       const client = await this.pool.connect();
+      
+      // 각 클라이언트 연결마다 paperly 스키마를 기본으로 설정
+      await client.query('SET search_path TO paperly, public');
       
       // 클라이언트에 추가 메타데이터 설정
       const originalQuery = client.query.bind(client);

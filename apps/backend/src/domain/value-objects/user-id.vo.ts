@@ -1,7 +1,8 @@
 // /Users/workspace/paperly/apps/backend/src/domain/value-objects/user-id.vo.ts
 
 import { v4 as uuidv4 } from 'uuid';
-import { BadRequestError } from '../../shared/errors';
+import { BadRequestError } from '../../shared/errors/index';
+import { MESSAGE_CODES } from '../../shared/constants/message-codes';
 
 /**
  * UserId Value Object
@@ -10,7 +11,7 @@ import { BadRequestError } from '../../shared/errors';
  * UUID v4 형식을 사용합니다.
  */
 export class UserId {
-  private readonly value: string;
+  private readonly _value: string;
 
   /**
    * UUID v4 정규식 패턴
@@ -22,7 +23,7 @@ export class UserId {
    * private 생성자
    */
   private constructor(id: string) {
-    this.value = id.toLowerCase();
+    this._value = id.toLowerCase();
   }
 
   /**
@@ -43,11 +44,11 @@ export class UserId {
    */
   static from(id: string): UserId {
     if (!id) {
-      throw new BadRequestError('사용자 ID가 필요합니다');
+      throw new BadRequestError('User ID is required', undefined, MESSAGE_CODES.VALIDATION.REQUIRED_FIELD_MISSING);
     }
 
     if (!this.isValidUUID(id)) {
-      throw new BadRequestError('유효하지 않은 사용자 ID 형식입니다');
+      throw new BadRequestError('Invalid user ID format', undefined, MESSAGE_CODES.USER.INVALID_USER_ID);
     }
 
     return new UserId(id);
@@ -64,34 +65,34 @@ export class UserId {
    * 문자열로 변환
    */
   toString(): string {
-    return this.value;
+    return this._value;
   }
 
   /**
    * 값 getter
    */
   getValue(): string {
-    return this.value;
+    return this._value;
   }
 
   /**
    * 값 getter (호환성을 위한 별칭)
    */
   get value(): string {
-    return this.value;
+    return this._value;
   }
 
   /**
    * 동일성 비교
    */
   equals(other: UserId): boolean {
-    return this.value === other.value;
+    return this._value === other._value;
   }
 
   /**
    * JSON 직렬화 지원
    */
   toJSON(): string {
-    return this.value;
+    return this._value;
   }
 }

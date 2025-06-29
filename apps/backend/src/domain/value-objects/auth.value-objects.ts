@@ -3,6 +3,8 @@
 import { z } from 'zod';
 import { createHash, randomBytes } from 'crypto';
 import { ValueObject } from '../../shared/domain/value-object';
+import { MESSAGE_CODES } from '../../shared/constants/message-codes';
+import { ValidationError } from '../../shared/errors/index';
 
 /**
  * 이메일 Value Object
@@ -23,7 +25,7 @@ export class Email extends ValueObject<string> {
     // 검증
     const result = this.schema.safeParse(normalized);
     if (!result.success) {
-      throw new Error('유효하지 않은 이메일 형식입니다');
+      throw new ValidationError('Invalid email format', undefined, MESSAGE_CODES.VALIDATION.INVALID_EMAIL_FORMAT);
     }
 
     return new Email(normalized);
@@ -71,15 +73,15 @@ export class Password extends ValueObject<string> {
    */
   private static validate(password: string): void {
     if (password.length < this.MIN_LENGTH) {
-      throw new Error(`비밀번호는 최소 ${this.MIN_LENGTH}자 이상이어야 합니다`);
+      throw new ValidationError('Password is too short', undefined, MESSAGE_CODES.VALIDATION.PASSWORD_TOO_SHORT);
     }
 
     if (!/[a-zA-Z]/.test(password)) {
-      throw new Error('비밀번호는 영문자를 포함해야 합니다');
+      throw new ValidationError('Password must contain letters', undefined, MESSAGE_CODES.VALIDATION.PASSWORD_COMPLEXITY);
     }
 
     if (!/[0-9]/.test(password)) {
-      throw new Error('비밀번호는 숫자를 포함해야 합니다');
+      throw new ValidationError('Password must contain numbers', undefined, MESSAGE_CODES.VALIDATION.PASSWORD_COMPLEXITY);
     }
   }
 
@@ -110,7 +112,7 @@ export class Token extends ValueObject<string> {
 
   static create(value: string): Token {
     if (!value || value.trim().length === 0) {
-      throw new Error('토큰이 비어있습니다');
+      throw new ValidationError('Token is required', undefined, MESSAGE_CODES.VALIDATION.REQUIRED_FIELD_MISSING);
     }
     return new Token(value.trim());
   }
@@ -148,19 +150,19 @@ export class BirthDate extends ValueObject<Date> {
     
     // 유효한 날짜인지 확인
     if (isNaN(birthDate.getTime())) {
-      throw new Error('유효하지 않은 날짜입니다');
+      throw new ValidationError('Invalid date format', undefined, MESSAGE_CODES.VALIDATION.REQUIRED_FIELD_MISSING);
     }
 
     // 미래 날짜 체크
     if (birthDate > new Date()) {
-      throw new Error('생년월일은 미래일 수 없습니다');
+      throw new ValidationError('Birth date cannot be in the future', undefined, MESSAGE_CODES.VALIDATION.REQUIRED_FIELD_MISSING);
     }
 
     // 너무 오래된 날짜 체크 (120년)
     const minDate = new Date();
     minDate.setFullYear(minDate.getFullYear() - 120);
     if (birthDate < minDate) {
-      throw new Error('유효하지 않은 생년월일입니다');
+      throw new ValidationError('Invalid birth date', undefined, MESSAGE_CODES.VALIDATION.REQUIRED_FIELD_MISSING);
     }
 
     return new BirthDate(birthDate);
@@ -212,7 +214,7 @@ export class Gender extends ValueObject<GenderType> {
     const normalizedGender = gender.toLowerCase();
     
     if (!Object.values(GenderType).includes(normalizedGender as GenderType)) {
-      throw new Error('유효하지 않은 성별입니다');
+      throw new ValidationError('Invalid gender', undefined, MESSAGE_CODES.VALIDATION.REQUIRED_FIELD_MISSING);
     }
 
     return new Gender(normalizedGender as GenderType);
@@ -247,7 +249,7 @@ export class DeviceInfo extends ValueObject<{ id: string; name: string }> {
 
   static create(deviceId: string, userAgent: string): DeviceInfo {
     if (!deviceId || deviceId.trim().length === 0) {
-      throw new Error('디바이스 ID가 필요합니다');
+      throw new ValidationError('Device ID is required', undefined, MESSAGE_CODES.VALIDATION.REQUIRED_FIELD_MISSING);
     }
 
     // User-Agent에서 디바이스 이름 추출

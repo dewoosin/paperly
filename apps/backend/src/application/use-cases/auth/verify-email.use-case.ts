@@ -8,6 +8,7 @@ import { EmailService } from '../../../infrastructure/email/email.service';
 import { UserId } from '../../../domain/value-objects/user-id.vo';
 import { BadRequestError, NotFoundError } from '../../../shared/errors';
 import { Logger } from '../../../infrastructure/logging/Logger';
+import { MESSAGE_CODES } from '../../../shared/constants/message-codes';
 
 /**
  * 이메일 인증 입력 스키마
@@ -58,7 +59,9 @@ export class VerifyEmailUseCase {
       );
       
       if (!verificationToken) {
-        throw new BadRequestError('유효하지 않은 인증 토큰입니다');
+        const error = new BadRequestError('유효하지 않은 인증 토큰입니다');
+        error.messageCode = MESSAGE_CODES.AUTH.INVALID_VERIFICATION_CODE;
+        throw error;
       }
 
       // 3. 사용자 조회
@@ -67,7 +70,9 @@ export class VerifyEmailUseCase {
       );
       
       if (!user) {
-        throw new NotFoundError('사용자를 찾을 수 없습니다');
+        const error = new NotFoundError('사용자를 찾을 수 없습니다');
+        error.messageCode = MESSAGE_CODES.USER.NOT_FOUND;
+        throw error;
       }
 
       // 4. 이미 인증된 경우
@@ -159,7 +164,9 @@ export class ResendVerificationUseCase {
       );
       
       if (!user) {
-        throw new NotFoundError('사용자를 찾을 수 없습니다');
+        const error = new NotFoundError('사용자를 찾을 수 없습니다');
+        error.messageCode = MESSAGE_CODES.USER.NOT_FOUND;
+        throw error;
       }
 
       // 3. 이미 인증된 경우

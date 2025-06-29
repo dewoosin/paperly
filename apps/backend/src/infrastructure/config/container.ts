@@ -11,9 +11,24 @@ import { VerifyEmailUseCase, ResendVerificationUseCase } from '../../application
 
 // Controllers
 import { AuthController } from '../web/controllers/auth.controller';
+import { ArticleController } from '../web/controllers/article.controller';
+import { AdminAuthController } from '../web/controllers/admin-auth.controller';
+import { AdminArticleController } from '../web/controllers/admin-article.controller';
 
 // Repositories
 import { AuthRepository } from '../repositories/auth.repository';
+
+// Article imports
+import { ArticleService } from '../../application/services/article.service';
+import { PgArticleRepository } from '../repositories/pg-article.repository';
+
+// Admin imports
+import { AdminAuthService } from '../../application/services/admin-auth.service';
+import { AdminRoleRepository } from '../repositories/admin-role.repository';
+import { SecurityEventRepository } from '../repositories/security-event.repository';
+import { SecurityMonitor } from '../security/monitoring/security-monitor';
+import { SecurityMonitorController } from '../web/controllers/security-monitor.controller';
+import { DatabaseConnection } from '../database/database.connection';
 
 // Services (임시 구현)
 import { Logger } from '../logging/Logger';
@@ -165,6 +180,10 @@ class MockTokenService {
   }
 }
 
+// Message Service
+import { MessageService, createMessageService } from '../services/message.service';
+import { ResponseUtil, createResponseUtil } from '../../shared/utils/response.util';
+
 // Mock Refresh Token Repository
 class MockRefreshTokenRepository {
   async findByToken(token: any) {
@@ -310,12 +329,18 @@ class MockAuthRepository {
 export function setupContainer() {
   logger.info('Setting up DI container...');
 
+  // Import real implementations
+  const { UserRepository } = require('../repositories/user.repository');
+  const { RefreshTokenRepository } = require('../repositories/refresh-token.repository');
+  const { EmailVerificationRepository } = require('../repositories/email-verification.repository');
+  const { TokenService } = require('../services/token.service');
+  
   // Repositories
   logger.info('Registering UserRepository...');
-  container.registerSingleton('UserRepository', MockUserRepository);
+  container.registerSingleton('UserRepository', UserRepository);
   logger.info('Registering other repositories...');
-  container.registerSingleton('RefreshTokenRepository', MockRefreshTokenRepository);
-  container.registerSingleton('EmailVerificationRepository', MockEmailVerificationRepository);
+  container.registerSingleton('RefreshTokenRepository', RefreshTokenRepository);
+  container.registerSingleton('EmailVerificationRepository', EmailVerificationRepository);
   container.registerSingleton('LoginAttemptRepository', MockLoginAttemptRepository);
   container.registerSingleton(AuthRepository, MockAuthRepository);
 
@@ -325,7 +350,7 @@ export function setupContainer() {
     useClass: RealEmailService
   });
   container.register('TokenService', {
-    useClass: MockTokenService
+    useClass: TokenService
   });
 
   // Use Cases
@@ -337,9 +362,59 @@ export function setupContainer() {
   container.registerSingleton(ResendVerificationUseCase, ResendVerificationUseCase);
   container.registerSingleton(LogoutUseCase, LogoutUseCase);
 
+  // Article related registrations
+  logger.info('Registering article related services...');
+  
+  // Need to register DatabasePool first
+  const { Pool } = require('pg');
+  const pool = new Pool({
+    host: 'localhost',
+    port: 5432,
+    database: 'paperly_db',
+    user: 'paperly_user',
+    password: 'paperly_dev_password'
+  });
+  
+  container.registerInstance('DatabasePool', pool);
+  container.register('ArticleRepository', { useClass: PgArticleRepository });
+  container.registerSingleton('ArticleService', ArticleService);
+  
+  // Message Service 등록
+  const messageService = createMessageService(pool);
+  container.registerInstance('MessageService', messageService);
+  container.registerInstance('ResponseUtil', createResponseUtil(messageService));
+  
+  // Import repository classes
+  const { CategoryRepository } = require('../repositories/category.repository');
+  const { TagRepository } = require('../repositories/tag.repository');
+  
+  // Register Category and Tag repositories
+  container.register('CategoryRepository', { useClass: CategoryRepository });
+  container.register('TagRepository', { useClass: TagRepository });
+
   // Controllers
   logger.info('Registering controllers...');
   container.registerSingleton(AuthController, AuthController);
+  container.registerSingleton(ArticleController, ArticleController);
+  container.registerSingleton(AdminArticleController, AdminArticleController);
+
+  // Admin services registration
+  logger.info('Registering admin services...');
+  
+  // Database connection for admin services
+  container.registerSingleton(DatabaseConnection, DatabaseConnection);
+  
+  // Security event repository
+  container.registerSingleton(SecurityEventRepository, SecurityEventRepository);
+  
+  // Security monitor with dependency injection
+  container.registerSingleton(SecurityMonitor, SecurityMonitor);
+  
+  // Admin repositories and services
+  container.registerSingleton(AdminRoleRepository, AdminRoleRepository);
+  container.register('AdminAuthService', { useClass: AdminAuthService });
+  container.registerSingleton(AdminAuthController, AdminAuthController);
+  container.registerSingleton(SecurityMonitorController, SecurityMonitorController);
 
   logger.info('DI container setup completed');
   

@@ -1,211 +1,164 @@
-// /Users/workspace/paperly/apps/backend/src/infrastructure/web/express/middlewares/error.middleware.ts
-
 import { Request, Response, NextFunction } from 'express';
-import { BaseError } from '../../../../shared/errors';
 import { Logger } from '../../../logging/Logger';
-import { ZodError } from 'zod';
-import { JsonWebTokenError, TokenExpiredError as JWTTokenExpiredError } from 'jsonwebtoken';
+import { ResponseUtil } from '../../../../shared/utils/response.util';
+import { MessageService } from '../../../services/message.service';
+import { MESSAGE_CODES } from '../../../../shared/constants/message-codes';
+import { container } from 'tsyringe';
 
-const logger = new Logger('ErrorHandler');
+const logger = new Logger('ErrorMiddleware');
 
 /**
- * 에러 응답 인터페이스
+ * Express 에러 처리 미들웨어
+ * 
+ * 모든 에러를 캡처하여 일관된 형식으로 응답합니다.
+ * 메시지 코드 시스템을 사용하여 다국어 지원이 가능합니다.
  */
-interface ErrorResponse {
-  error: {
-    code: string;
-    message: string;
-    details?: any;
-    timestamp: Date;
-    requestId: string;
-    path?: string;
-    method?: string;
-  };
+export function errorMiddleware(
+  err: any, 
+  req: Request, 
+  res: Response, 
+  next: NextFunction
+): void {
+  // ResponseUtil 인스턴스 가져오기
+  const responseUtil = container.resolve<ResponseUtil>('ResponseUtil');
+  
+  // 이미 응답이 전송된 경우 처리하지 않음
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  // 에러 로깅
+  logger.error('Unhandled error:', {
+    error: err.message,
+    stack: err.stack,
+    path: req.path,
+    method: req.method,
+    body: req.body,
+    ip: req.ip
+  });
+
+  // 에러 타입별 처리
+  handleError(err, req, res, responseUtil);
 }
 
 /**
- * 글로벌 에러 핸들링 미들웨어
- * 
- * 모든 에러를 catch하여 일관된 형식으로 응답합니다.
+ * 에러 타입별 처리 함수
  */
-export function errorHandler(
-  error: Error,
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void {
-  // 이미 응답이 전송된 경우
-  if (res.headersSent) {
-    return next(error);
-  }
-
-  // 요청 정보
-  const requestInfo = {
-    path: req.path,
-    method: req.method,
-    ip: req.ip,
-    userAgent: req.get('user-agent'),
-    userId: (req as any).user?.userId
-  };
-
-  // BaseError 인스턴스인 경우 (비즈니스 에러)
-  if (error instanceof BaseError) {
-    logger.error('Business error', {
-      ...error.toJSON(),
-      request: requestInfo
+async function handleError(
+  err: any, 
+  req: Request, 
+  res: Response, 
+  responseUtil: ResponseUtil
+): Promise<void> {
+  // 유효성 검사 에러
+  if (err.name === 'ValidationError' || err.type === 'validation') {
+    await responseUtil.validationError(res, err.errors || {
+      validation: err.message
     });
-    
-    const response: ErrorResponse = {
-      error: {
-        code: error.code,
-        message: error.message,
-        details: error.details,
-        timestamp: error.timestamp,
-        requestId: (req as any).id || 'unknown',
-        path: req.path,
-        method: req.method
-      }
-    };
-
-    res.status(error.statusCode).json(response);
-    return;
-  }
-
-  // Zod 검증 에러
-  if (error instanceof ZodError) {
-    logger.warn('Validation error', {
-      errors: error.errors,
-      request: requestInfo
-    });
-
-    const response: ErrorResponse = {
-      error: {
-        code: 'VALIDATION_ERROR',
-        message: '입력값이 올바르지 않습니다',
-        details: error.errors.map(err => ({
-          field: err.path.join('.'),
-          message: err.message,
-          code: err.code
-        })),
-        timestamp: new Date(),
-        requestId: (req as any).id || 'unknown',
-        path: req.path,
-        method: req.method
-      }
-    };
-
-    res.status(400).json(response);
     return;
   }
 
   // JWT 에러
-  if (error instanceof JsonWebTokenError) {
-    logger.warn('JWT error', {
-      error: error.message,
-      request: requestInfo
-    });
+  if (err.name === 'JsonWebTokenError') {
+    await responseUtil.authError(res, MESSAGE_CODES.AUTH.INVALID_TOKEN);
+    return;
+  }
 
-    let statusCode = 401;
-    let code = 'INVALID_TOKEN';
-    let message = '유효하지 않은 토큰입니다';
+  // JWT 만료 에러
+  if (err.name === 'TokenExpiredError') {
+    await responseUtil.authError(res, MESSAGE_CODES.AUTH.TOKEN_EXPIRED);
+    return;
+  }
 
-    if (error instanceof JWTTokenExpiredError) {
-      code = 'TOKEN_EXPIRED';
-      message = '토큰이 만료되었습니다';
+  // 권한 없음 에러
+  if (err.name === 'UnauthorizedError' || err.status === 401) {
+    await responseUtil.authError(res);
+    return;
+  }
+
+  // 접근 거부 에러
+  if (err.name === 'ForbiddenError' || err.status === 403) {
+    await responseUtil.forbiddenError(res);
+    return;
+  }
+
+  // Not Found 에러
+  if (err.name === 'NotFoundError' || err.status === 404) {
+    await responseUtil.notFoundError(res);
+    return;
+  }
+
+  // 데이터베이스 에러
+  if (err.code && err.code.startsWith('23')) {
+    // PostgreSQL 에러 코드
+    if (err.code === '23505') {
+      // Unique constraint violation
+      await responseUtil.error(res, MESSAGE_CODES.SYSTEM.BAD_REQUEST, {
+        constraint: err.constraint,
+        detail: err.detail
+      });
+    } else {
+      await responseUtil.error(res, MESSAGE_CODES.SYSTEM.CANNOT_PROCESS_REQUEST);
     }
-
-    const response: ErrorResponse = {
-      error: {
-        code,
-        message,
-        timestamp: new Date(),
-        requestId: (req as any).id || 'unknown',
-        path: req.path,
-        method: req.method
-      }
-    };
-
-    res.status(statusCode).json(response);
     return;
   }
 
-  // MongoDB/Mongoose 에러 (예시)
-  if (error.name === 'MongoError' || error.name === 'ValidationError') {
-    logger.error('Database error', {
-      error: error.message,
-      request: requestInfo
-    });
-
-    const response: ErrorResponse = {
-      error: {
-        code: 'DATABASE_ERROR',
-        message: '데이터 처리 중 오류가 발생했습니다',
-        timestamp: new Date(),
-        requestId: (req as any).id || 'unknown',
-        path: req.path,
-        method: req.method
-      }
-    };
-
-    res.status(500).json(response);
+  // 비즈니스 로직 에러 (메시지 코드가 포함된 경우)
+  if (err.messageCode) {
+    await responseUtil.error(res, err.messageCode, err.details);
     return;
   }
 
-  // 예상치 못한 에러
-  logger.error('Unexpected error', {
-    error: {
-      name: error.name,
-      message: error.message,
-      stack: error.stack
-    },
-    request: requestInfo
+  // 알려진 에러 메시지 매핑
+  const errorMessageMap: Record<string, string> = {
+    '이미 사용 중인 이메일입니다': MESSAGE_CODES.AUTH.EMAIL_EXISTS,
+    '이메일 또는 비밀번호가 올바르지 않습니다': MESSAGE_CODES.AUTH.INVALID_CREDENTIALS,
+    '유효하지 않은 토큰입니다': MESSAGE_CODES.AUTH.INVALID_TOKEN,
+    '토큰이 만료되었습니다': MESSAGE_CODES.AUTH.TOKEN_EXPIRED,
+    '권한이 없습니다': MESSAGE_CODES.AUTH.ACCESS_DENIED,
+    '사용자를 찾을 수 없습니다': MESSAGE_CODES.USER.NOT_FOUND,
+    '글을 찾을 수 없습니다': MESSAGE_CODES.ARTICLE.NOT_FOUND,
+    '카테고리를 찾을 수 없습니다': MESSAGE_CODES.CATEGORY.NOT_FOUND,
+    '파일 크기가 너무 큽니다': MESSAGE_CODES.VALIDATION.FILE_TOO_LARGE,
+    '지원하지 않는 파일 형식입니다': MESSAGE_CODES.VALIDATION.UNSUPPORTED_FILE_FORMAT,
+  };
+
+  // 에러 메시지로 메시지 코드 찾기
+  for (const [message, code] of Object.entries(errorMessageMap)) {
+    if (err.message && err.message.includes(message)) {
+      await responseUtil.error(res, code);
+      return;
+    }
+  }
+
+  // 기본 서버 에러
+  await responseUtil.serverError(res, err);
+}
+
+/**
+ * 404 Not Found 미들웨어
+ * 
+ * 라우트를 찾을 수 없을 때 사용됩니다.
+ */
+export function notFoundMiddleware(
+  req: Request, 
+  res: Response, 
+  next: NextFunction
+): void {
+  const responseUtil = container.resolve<ResponseUtil>('ResponseUtil');
+  
+  logger.warn('Route not found:', {
+    path: req.path,
+    method: req.method,
+    ip: req.ip
   });
-  
-  // 개발 환경에서는 스택 트레이스 포함
-  const isDevelopment = process.env.NODE_ENV === 'development';
-  
-  const response: ErrorResponse = {
-    error: {
-      code: 'INTERNAL_ERROR',
-      message: isDevelopment ? error.message : '서버 오류가 발생했습니다',
-      details: isDevelopment ? { stack: error.stack } : undefined,
-      timestamp: new Date(),
-      requestId: (req as any).id || 'unknown',
-      path: req.path,
-      method: req.method
-    }
-  };
 
-  res.status(500).json(response);
-}
-
-/**
- * 404 Not Found 핸들러
- * 
- * 매칭되는 라우트가 없을 때 사용됩니다.
- */
-export function notFoundHandler(req: Request, res: Response): void {
-  const response: ErrorResponse = {
-    error: {
-      code: 'NOT_FOUND',
-      message: `요청하신 경로를 찾을 수 없습니다: ${req.method} ${req.path}`,
-      timestamp: new Date(),
-      requestId: (req as any).id || 'unknown',
-      path: req.path,
-      method: req.method
-    }
-  };
-
-  res.status(404).json(response);
-}
-
-/**
- * 비동기 에러 핸들러 래퍼
- * 
- * 비동기 라우트 핸들러의 에러를 자동으로 catch합니다.
- */
-export function asyncHandler(fn: Function) {
-  return (req: Request, res: Response, next: NextFunction) => {
-    Promise.resolve(fn(req, res, next)).catch(next);
-  };
+  responseUtil.notFoundError(res).catch(err => {
+    logger.error('Error in notFoundMiddleware:', err);
+    res.status(404).json({
+      success: false,
+      code: MESSAGE_CODES.SYSTEM.RESOURCE_NOT_FOUND,
+      message: `Route ${req.method} ${req.path} not found`
+    });
+  });
 }

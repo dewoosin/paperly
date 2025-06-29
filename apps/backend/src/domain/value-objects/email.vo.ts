@@ -1,7 +1,8 @@
 // /Users/workspace/paperly/apps/backend/src/domain/value-objects/email.vo.ts
 
 import { z } from 'zod';
-import { BadRequestError } from '../../shared/errors';
+import { BadRequestError } from '../../shared/errors/index';
+import { MESSAGE_CODES } from '../../shared/constants/message-codes';
 
 /**
  * Email Value Object
@@ -17,9 +18,9 @@ export class Email {
    */
   private static readonly schema = z
     .string()
-    .email('올바른 이메일 형식이 아닙니다')
+    .email('Invalid email format')
     .toLowerCase()
-    .max(255, '이메일은 255자를 초과할 수 없습니다');
+    .max(255, 'Email cannot exceed 255 characters');
 
   /**
    * private 생성자 - create 메서드를 통해서만 생성 가능
@@ -41,7 +42,9 @@ export class Email {
       return new Email(validatedEmail);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        throw new BadRequestError(error.errors[0].message);
+        const isEmailFormat = error.errors.some(e => e.code === 'invalid_string' && e.validation === 'email');
+        const messageCode = isEmailFormat ? MESSAGE_CODES.VALIDATION.INVALID_EMAIL_FORMAT : MESSAGE_CODES.VALIDATION.REQUIRED_FIELD_MISSING;
+        throw new BadRequestError(error.errors[0].message, undefined, messageCode);
       }
       throw error;
     }

@@ -21,6 +21,10 @@ const JwtConfigSchema = z.object({
 export interface JwtPayload {
   userId: string;
   email: string;
+  userType: string;
+  userCode: string;
+  role?: string;
+  permissions?: string[];
   type: 'access' | 'refresh';
   iat?: number;
   exp?: number;
