@@ -1,76 +1,54 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'secure_storage_service.dart';
 
 class StorageService {
-  static const String _tokenKey = 'auth_token';
-  static const String _userKey = 'user_data';
   static const String _settingsKey = 'app_settings';
   static const String _draftsKey = 'local_drafts';
+  
+  final SecureStorageService _secureStorage = SecureStorageService();
 
-  // 토큰 관리
+  // 토큰 관리 (보안 저장소 사용)
   Future<String?> getToken() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getString(_tokenKey);
-    } catch (e) {
-      print('토큰 가져오기 실패: $e');
-      return null;
-    }
+    return await _secureStorage.getToken();
   }
 
   Future<bool> saveToken(String token) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      return await prefs.setString(_tokenKey, token);
-    } catch (e) {
-      print('토큰 저장 실패: $e');
-      return false;
-    }
+    return await _secureStorage.saveToken(token);
+  }
+
+  Future<String?> getRefreshToken() async {
+    return await _secureStorage.getRefreshToken();
+  }
+
+  Future<bool> saveRefreshToken(String refreshToken) async {
+    return await _secureStorage.saveRefreshToken(refreshToken);
+  }
+
+  Future<bool> saveTokens(String accessToken, String refreshToken) async {
+    return await _secureStorage.saveTokens(accessToken, refreshToken);
   }
 
   Future<bool> removeToken() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      return await prefs.remove(_tokenKey);
-    } catch (e) {
-      print('토큰 삭제 실패: $e');
-      return false;
-    }
+    return await _secureStorage.removeTokens();
   }
 
-  // 사용자 데이터 관리
+  // 사용자 데이터 관리 (보안 저장소 사용)
   Future<Map<String, dynamic>?> getUserData() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final userData = prefs.getString(_userKey);
-      if (userData != null) {
-        return json.decode(userData);
-      }
-      return null;
-    } catch (e) {
-      print('사용자 데이터 가져오기 실패: $e');
-      return null;
-    }
+    return await _secureStorage.getUserData();
   }
 
   Future<bool> saveUserData(Map<String, dynamic> userData) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      return await prefs.setString(_userKey, json.encode(userData));
-    } catch (e) {
-      print('사용자 데이터 저장 실패: $e');
-      return false;
-    }
+    return await _secureStorage.saveUserData(userData);
   }
 
   Future<bool> removeUserData() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      return await prefs.remove(_userKey);
-    } catch (e) {
-      print('사용자 데이터 삭제 실패: $e');
-      return false;
-    }
+    return await _secureStorage.removeUserData();
+  }
+
+  // 로그인 상태 확인
+  Future<bool> isLoggedIn() async {
+    return await _secureStorage.hasToken();
   }
 
   // 앱 설정 관리

@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'providers/auth_provider.dart';
 import 'providers/article_provider.dart';
 import 'providers/analytics_provider.dart';
+import 'providers/dashboard_provider.dart';
 import 'providers/writer_profile_provider.dart';
 import 'theme/writer_theme.dart';
 import 'screens/splash_screen.dart';
@@ -63,6 +64,14 @@ class PaperlyWriterApp extends StatelessWidget {
           update: (context, auth, previous) => previous ?? AnalyticsProvider(
             apiService: ApiService(),
           )..updateAuthToken(auth.token),
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, DashboardProvider>(
+          create: (context) => DashboardProvider(
+            ApiService(),
+          ),
+          update: (context, auth, previous) => previous ?? DashboardProvider(
+            ApiService(),
+          ),
         ),
         ChangeNotifierProxyProvider<AuthProvider, WriterProfileProvider>(
           create: (context) => WriterProfileProvider(

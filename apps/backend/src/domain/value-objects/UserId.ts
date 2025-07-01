@@ -5,7 +5,7 @@
  * 타입 안정성과 ID 생성 로직 캡슐화
  */
 
-import { ValidationError } from '../../shared/errors/BaseError';
+import { ValidationError } from '../../shared/errors/index';
 
 export class UserId {
   private readonly value: number;

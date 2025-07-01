@@ -1,6 +1,7 @@
 // /Users/workspace/paperly/apps/backend/src/infrastructure/logging/logger.ts
 
 import winston from 'winston';
+import { sanitizeLogData, createSanitizedLogMessage } from './log-sanitizer';
 
 /**
  * Winston Logger 인스턴스
@@ -112,15 +113,19 @@ export class Logger {
   }
 
   private log(level: string, message: string, meta?: any) {
+    // Sanitize sensitive data before logging
+    const sanitizedMessage = createSanitizedLogMessage(message, meta);
+    
     const logData = {
       service: 'paperly-backend',
       hostname: Logger.hostname,
       pid: process.pid,
       context: this.context,
-      ...meta
+      ...(sanitizedMessage.data ? sanitizeLogData(sanitizedMessage.data) : {}),
+      ...(meta ? sanitizeLogData(meta) : {})
     };
 
-    winstonLogger.log(level, message, logData);
+    winstonLogger.log(level, sanitizedMessage.message, logData);
   }
 
   error(message: string, error?: Error | any, meta?: any) {

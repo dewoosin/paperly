@@ -193,6 +193,17 @@ export class AuthRepository {
   }
 
   /**
+   * 이메일 인증 토큰 생성 (alias for saveEmailVerificationToken)
+   */
+  async createEmailVerificationToken(
+    userId: string,
+    token: string,
+    expiresAt: Date
+  ): Promise<void> {
+    return this.saveEmailVerificationToken(userId, token, expiresAt);
+  }
+
+  /**
    * 이메일 인증 토큰 조회
    */
   async findEmailVerificationToken(token: string): Promise<any | null> {
@@ -220,6 +231,51 @@ export class AuthRepository {
       }
     } catch (error) {
       this.logger.error('Failed to mark email as verified', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 이메일 인증 토큰 삭제
+   */
+  async deleteEmailVerificationToken(token: string): Promise<void> {
+    try {
+      this.emailVerifications.delete(token);
+      this.logger.info('Email verification token deleted', { token });
+    } catch (error) {
+      this.logger.error('Failed to delete email verification token', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 만료된 토큰 정리
+   */
+  async cleanupExpiredTokens(): Promise<number> {
+    try {
+      const now = new Date();
+      let count = 0;
+      
+      // Refresh Token 정리
+      for (const [token, data] of this.refreshTokens.entries()) {
+        if (data.expiresAt < now) {
+          this.refreshTokens.delete(token);
+          count++;
+        }
+      }
+
+      // Email Verification Token 정리
+      for (const [token, data] of this.emailVerifications.entries()) {
+        if (data.expiresAt < now) {
+          this.emailVerifications.delete(token);
+          count++;
+        }
+      }
+
+      this.logger.info('Expired tokens cleaned up', { count });
+      return count;
+    } catch (error) {
+      this.logger.error('Failed to cleanup expired tokens', error);
       throw error;
     }
   }

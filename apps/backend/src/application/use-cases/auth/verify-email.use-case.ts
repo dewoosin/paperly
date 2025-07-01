@@ -6,7 +6,7 @@ import { IUserRepository } from '../../../infrastructure/repositories/user.repos
 import { AuthRepository } from '../../../infrastructure/repositories/auth.repository';
 import { EmailService } from '../../../infrastructure/email/email.service';
 import { UserId } from '../../../domain/value-objects/user-id.vo';
-import { BadRequestError, NotFoundError } from '../../../shared/errors';
+import { BadRequestError, NotFoundError } from '../../../shared/errors/index';
 import { Logger } from '../../../infrastructure/logging/Logger';
 import { MESSAGE_CODES } from '../../../shared/constants/message-codes';
 
@@ -59,9 +59,7 @@ export class VerifyEmailUseCase {
       );
       
       if (!verificationToken) {
-        const error = new BadRequestError('유효하지 않은 인증 토큰입니다');
-        error.messageCode = MESSAGE_CODES.AUTH.INVALID_VERIFICATION_CODE;
-        throw error;
+        throw new BadRequestError('유효하지 않은 인증 토큰입니다', undefined, MESSAGE_CODES.AUTH.INVALID_VERIFICATION_CODE);
       }
 
       // 3. 사용자 조회
@@ -70,9 +68,7 @@ export class VerifyEmailUseCase {
       );
       
       if (!user) {
-        const error = new NotFoundError('사용자를 찾을 수 없습니다');
-        error.messageCode = MESSAGE_CODES.USER.NOT_FOUND;
-        throw error;
+        throw new NotFoundError('사용자를 찾을 수 없습니다', undefined, MESSAGE_CODES.USER.NOT_FOUND);
       }
 
       // 4. 이미 인증된 경우
@@ -164,9 +160,7 @@ export class ResendVerificationUseCase {
       );
       
       if (!user) {
-        const error = new NotFoundError('사용자를 찾을 수 없습니다');
-        error.messageCode = MESSAGE_CODES.USER.NOT_FOUND;
-        throw error;
+        throw new NotFoundError('사용자를 찾을 수 없습니다', undefined, MESSAGE_CODES.USER.NOT_FOUND);
       }
 
       // 3. 이미 인증된 경우

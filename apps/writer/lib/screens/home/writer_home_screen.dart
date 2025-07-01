@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/article_provider.dart';
 import '../../providers/analytics_provider.dart';
+import '../../providers/dashboard_provider.dart';
 import '../../theme/writer_theme.dart';
 import '../../widgets/writer_app_bar.dart';
 import '../../widgets/stats_overview_card.dart';
@@ -14,6 +15,7 @@ import '../articles/my_articles_screen.dart';
 import '../analytics/analytics_screen.dart';
 import '../profile/profile_screen.dart';
 import '../followers/followers_screen.dart';
+import '../dashboard/writer_dashboard_screen.dart';
 import '../../widgets/animated_counter.dart';
 
 class WriterHomeScreen extends StatefulWidget {
@@ -30,7 +32,7 @@ class _WriterHomeScreenState extends State<WriterHomeScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     
     // 데이터 로드
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -47,11 +49,13 @@ class _WriterHomeScreenState extends State<WriterHomeScreen>
   Future<void> _loadInitialData() async {
     final articleProvider = Provider.of<ArticleProvider>(context, listen: false);
     final analyticsProvider = Provider.of<AnalyticsProvider>(context, listen: false);
+    final dashboardProvider = Provider.of<DashboardProvider>(context, listen: false);
     
     await Future.wait([
       articleProvider.loadMyArticles(),
       analyticsProvider.loadStats(),
       analyticsProvider.loadTrendingTopics(),
+      dashboardProvider.loadDashboardMetrics(),
     ]);
   }
 
@@ -67,6 +71,7 @@ class _WriterHomeScreenState extends State<WriterHomeScreen>
             physics: const BouncingScrollPhysics(),
             children: [
               _buildHomeTab(),
+              _buildDashboardTab(),
               _buildArticlesTab(),
               _buildAnalyticsTab(),
               _buildProfileTab(),
@@ -78,7 +83,7 @@ class _WriterHomeScreenState extends State<WriterHomeScreen>
       floatingActionButton: AnimatedBuilder(
         animation: _tabController.animation!,
         builder: (context, child) {
-          final showFAB = _tabController.index == 0 || _tabController.index == 1;
+          final showFAB = _tabController.index == 0 || _tabController.index == 2;
           return AnimatedScale(
             scale: showFAB ? 1.0 : 0.0,
             duration: const Duration(milliseconds: 200),
@@ -141,6 +146,10 @@ class _WriterHomeScreenState extends State<WriterHomeScreen>
         ),
       ],
     );
+  }
+
+  Widget _buildDashboardTab() {
+    return const WriterDashboardScreen();
   }
 
   Widget _buildArticlesTab() {
@@ -274,6 +283,10 @@ class _WriterHomeScreenState extends State<WriterHomeScreen>
           Tab(
             icon: Icon(Icons.home),
             text: '홈',
+          ),
+          Tab(
+            icon: Icon(Icons.dashboard),
+            text: '대시보드',
           ),
           Tab(
             icon: Icon(Icons.article),

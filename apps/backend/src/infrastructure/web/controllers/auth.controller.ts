@@ -155,6 +155,11 @@ export class AuthController {
       this.logger.info('회원가입 요청', { 
         email: req.body.email,
         name: req.body.name,
+        nameLength: req.body.name?.length,
+        username: req.body.username,
+        usernameLength: req.body.username?.length,
+        birthDate: req.body.birthDate,
+        userType: req.body.userType,
         deviceId: req.body.deviceId,
         ip: req.ip,
         userAgent: req.headers['user-agent']
@@ -550,16 +555,19 @@ export class AuthController {
         return;
       }
 
-      const existingUser = await this.userRepository.findByUsername(username);
+      const isUsernameExists = await this.userRepository.existsByUsername(username);
       
-      if (existingUser) {
+      if (isUsernameExists) {
         await this.responseUtil.success(res, MESSAGE_CODES.USER.NICKNAME_IN_USE, {
           available: false
         });
       } else {
-        await this.responseUtil.success(res, MESSAGE_CODES.SYSTEM.RESOURCE_NOT_FOUND, {
-          available: true,
-          message: '사용 가능한 사용자명입니다'
+        res.status(200).json({
+          success: true,
+          message: '사용 가능한 사용자명입니다',
+          data: {
+            available: true
+          }
         });
       }
     } catch (error: any) {

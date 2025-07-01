@@ -28,16 +28,12 @@ import { inject, injectable } from 'tsyringe';           // 의존성 주입 프
 import { z } from 'zod';                                 // 런타임 데이터 검증 라이브러리
 import { IUserRepository } from '../../../infrastructure/repositories/user.repository';     // 사용자 데이터 저장소 인터페이스
 import { EmailService } from '../../../infrastructure/email/email.service';                // 이메일 전송 서비스
-import { JwtService } from '../../../infrastructure/auth/jwt.service';                     // JWT 토큰 관리 서비스
-import { AuthRepository } from '../../../infrastructure/repositories/auth.repository';     // 인증 데이터 저장소
-import { User } from '../../../domain/entities/User.entity';                               // 사용자 도메인 엔티티
+import { User } from '../../../domain/entities/user.entity';                               // 사용자 도메인 엔티티
 import { Email } from '../../../domain/value-objects/email.vo';                            // 이메일 Value Object
 import { Password } from '../../../domain/value-objects/password.vo';                      // 비밀번호 Value Object
-import { UserId } from '../../../domain/value-objects/user-id.vo';                         // 사용자 ID Value Object
 import { Gender } from '../../../domain/auth/auth.types';                                  // 성별 타입 정의
-import { ConflictError, BadRequestError } from '../../../shared/errors';                   // 도메인 에러 타입들
+import { ConflictError, BadRequestError } from '../../../shared/errors/index';                   // 도메인 에러 타입들
 import { Logger } from '../../../infrastructure/logging/Logger';                           // 구조화된 로깅 서비스
-import { SecurityValidator, FieldType, InputContext } from '../../../infrastructure/security/validators';  // 보안 검증기
 import { SecuritySanitizer, SanitizationContext, SQLSanitizationContext } from '../../../infrastructure/security/sanitizers';  // 보안 새니타이저
 import { MESSAGE_CODES } from '../../../shared/constants/message-codes';                                                 // 메시지 코드 상수
 
@@ -152,8 +148,7 @@ export class RegisterUseCase {
   constructor(
     @inject('UserRepository') private userRepository: IUserRepository,
     @inject('EmailService') private emailService: EmailService,
-    @inject('TokenService') private tokenService: any,
-    @inject(AuthRepository) private authRepository: AuthRepository
+    @inject('TokenService') private tokenService: any
   ) {}
 
   /**
@@ -193,7 +188,7 @@ export class RegisterUseCase {
       password: input.password, // 비밀번호는 해싱되므로 새니타이징 생략
       name: SecuritySanitizer.sanitizeAll(input.name, {
         htmlContext: SanitizationContext.PLAIN_TEXT,
-        sqlContext: SQLSanitizationContext.USERNAME,
+        sqlContext: SQLSanitizationContext.STRING_LITERAL,
         fieldName: 'name'
       }).finalValue,
       username: SecuritySanitizer.sanitizeAll(input.username, {
@@ -246,9 +241,7 @@ export class RegisterUseCase {
       const age = this.calculateAge(birthDate);
       if (age < 14) {
         this.logger.warn('연령 제한 위반', { age, email: validatedInput.email });
-        const error = new BadRequestError('14세 이상만 가입할 수 있습니다');
-        error.messageCode = MESSAGE_CODES.VALIDATION.REQUIRED_FIELD_MISSING;
-        throw error;
+        throw new BadRequestError('14세 이상만 가입할 수 있습니다', undefined, MESSAGE_CODES.VALIDATION.REQUIRED_FIELD_MISSING);
       }
 
       // ========================================================================
@@ -260,18 +253,14 @@ export class RegisterUseCase {
       const existingUser = await this.userRepository.findByEmail(email);
       if (existingUser) {
         this.logger.warn('이메일 중복 감지', { email: validatedInput.email });
-        const error = new ConflictError('이미 사용 중인 이메일입니다');
-        error.messageCode = MESSAGE_CODES.AUTH.EMAIL_EXISTS;
-        throw error;
+        throw new ConflictError('이미 사용 중인 이메일입니다', undefined, MESSAGE_CODES.AUTH.EMAIL_EXISTS);
       }
 
       // 동일한 사용자명으로 가입된 기존 사용자 확인
       const existingUsername = await this.userRepository.findByUsername(validatedInput.username);
       if (existingUsername) {
         this.logger.warn('사용자명 중복 감지', { username: validatedInput.username });
-        const error = new ConflictError('이미 사용 중인 아이디입니다');
-        error.messageCode = MESSAGE_CODES.USER.NICKNAME_IN_USE;
-        throw error;
+        throw new ConflictError('이미 사용 중인 아이디입니다', undefined, MESSAGE_CODES.USER.NICKNAME_IN_USE);
       }
 
       // ========================================================================

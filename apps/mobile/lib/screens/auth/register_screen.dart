@@ -10,6 +10,7 @@ import '../../providers/auth_provider.dart';
 import '../../widgets/muji_text_field.dart';
 import '../../widgets/muji_button.dart';
 import '../../models/auth_models.dart';
+import '../../services/device_info_service.dart';
 import 'email_verification_screen.dart';
 
 /// 회원가입 화면
@@ -183,6 +184,10 @@ class _RegisterScreenState extends State<RegisterScreen>
     
     try {
       final authProvider = context.read<AuthProvider>();
+      
+      // 디바이스 정보 생성
+      final deviceInfo = await DeviceInfoService.createDeviceInfo();
+      
       final response = await authProvider.register(
         RegisterRequest(
           email: _emailController.text.trim(),
@@ -190,6 +195,7 @@ class _RegisterScreenState extends State<RegisterScreen>
           name: _nameController.text.trim(),
           birthDate: _birthDate!,
           gender: _selectedGender,
+          deviceInfo: deviceInfo,
         ),
       );
       

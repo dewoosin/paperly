@@ -48,12 +48,13 @@ class FollowerStatsCard extends StatelessWidget {
                   Column(
                     children: [
                       AnimatedCounter(
-                        value: _formatFollowerCount(stats?.followersCount ?? 0),
+                        value: stats?.followersCount ?? 0,
                         style: WriterTheme.headingStyle.copyWith(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
                           fontSize: 48,
                         ),
+                        formatter: (value) => _formatFollowerCount(value),
                       ),
                       Text(
                         '구독자',
@@ -159,7 +160,7 @@ class FollowerStatsCard extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         AnimatedCounter(
-          value: value,
+          value: int.tryParse(value.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0,
           style: WriterTheme.subtitleStyle.copyWith(
             color: Colors.white,
             fontWeight: FontWeight.bold,

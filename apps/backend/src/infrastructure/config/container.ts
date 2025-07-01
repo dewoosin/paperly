@@ -36,9 +36,13 @@ import { RealEmailService } from '../email/real-email.service';
 
 const logger = new Logger('Container');
 
+// Import production container setup
+import { setupProductionContainer } from './container.prod';
+
 /**
- * 임시 Mock 서비스들
- * 실제 구현이 완성될 때까지 사용
+ * Development-only Mock Services
+ * WARNING: These should NEVER be used in production!
+ * Only for local development and testing
  */
 
 // Mock User Repository
@@ -84,7 +88,43 @@ class MockUserRepository {
   
   async save(user: any) {
     const emailStr = user.email?.getValue ? user.email.getValue() : user.email;
-    const userId = `user-${Date.now()}`;
+    const userId = user.id?.getValue() || `user-${Date.now()}`;
+    
+    // 실제 데이터베이스에 저장 (간단한 버전)
+    const { Pool } = require('pg');
+    const pool = new Pool({
+      host: 'localhost',
+      port: 5432,
+      database: 'paperly_db',
+      user: 'paperly_user',
+      password: 'paperly_dev_password'
+    });
+    
+    try {
+      const client = await pool.connect();
+      await client.query('SET search_path TO paperly');
+      
+      // 이미 존재하는지 확인
+      const existingUser = await client.query(
+        'SELECT id FROM users WHERE id = $1',
+        [userId]
+      );
+      
+      if (existingUser.rows.length === 0) {
+        // 새 사용자 저장 (간단한 버전)
+        await client.query(
+          `INSERT INTO users (id, email, password_hash, name, birth_date, gender, status, created_at) 
+           VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+          [userId, emailStr, 'hashed_password', user.name, '1990-01-01', 'other', 'active']
+        );
+        logger.info('실제 DB에 사용자 저장됨', { userId, email: emailStr, name: user.name });
+      }
+      
+      client.release();
+      pool.end();
+    } catch (error) {
+      logger.error('사용자 저장 중 에러 (DB에 저장 시도)', { error });
+    }
     
     const savedUser = {
       id: { getValue: () => userId },
@@ -113,6 +153,33 @@ class MockUserRepository {
     }
     
     return null;
+  }
+
+  async findByUsername(username: string) {
+    logger.info('Mock: 사용자명으로 사용자 조회', { username });
+    
+    // 테스트용으로 몇 개의 사용자명을 사용 중으로 시뮬레이션
+    const usedUsernames = ['admin', 'test', 'user', 'writer', 'author', 'paperly'];
+    
+    if (usedUsernames.includes(username.toLowerCase())) {
+      return {
+        id: { getValue: () => `mock-user-${username}` },
+        email: { getValue: () => `${username}@example.com` },
+        name: username,
+        emailVerified: true
+      };
+    }
+    
+    return null;
+  }
+
+  async existsByUsername(username: string) {
+    logger.info('Mock: 사용자명 존재 여부 확인', { username });
+    
+    // 테스트용으로 몇 개의 사용자명을 사용 중으로 시뮬레이션
+    const usedUsernames = ['admin', 'test', 'user', 'writer', 'author', 'paperly'];
+    
+    return usedUsernames.includes(username.toLowerCase());
   }
 }
 
@@ -196,6 +263,35 @@ class MockRefreshTokenRepository {
   
   async create(tokenData: any) {
     return tokenData;
+  }
+  
+  async saveRefreshToken(
+    userId: string, 
+    token: string, 
+    expiresAt: Date, 
+    deviceId?: string, 
+    userAgent?: string, 
+    ipAddress?: string
+  ): Promise<void> {
+    // Mock implementation - just return success
+    return Promise.resolve();
+  }
+  
+  async updateLastUsed(token: string): Promise<void> {
+    // Mock implementation - just return success
+    return Promise.resolve();
+  }
+  
+  async revokeAllByUserId(userId: any): Promise<void> {
+    return Promise.resolve();
+  }
+  
+  async revokeByToken(token: any): Promise<void> {
+    return Promise.resolve();
+  }
+  
+  async cleanupExpiredTokens(): Promise<void> {
+    return Promise.resolve();
   }
 }
 
@@ -327,20 +423,31 @@ class MockAuthRepository {
  * DI Container 설정
  */
 export function setupContainer() {
-  logger.info('Setting up DI container...');
-
-  // Import real implementations
+  const isProduction = process.env.NODE_ENV === 'production';
+  const isDevelopment = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
+  
+  logger.info(`Setting up DI container for ${process.env.NODE_ENV || 'development'} environment...`);
+  
+  // Use production container in production
+  if (isProduction) {
+    return setupProductionContainer();
+  }
+  
+  // Development mode setup
+  logger.warn('⚠️  Using MOCK services for development. These should NEVER be used in production!');
+  
+  // Import real implementations for mixed mode
   const { UserRepository } = require('../repositories/user.repository');
   const { RefreshTokenRepository } = require('../repositories/refresh-token.repository');
   const { EmailVerificationRepository } = require('../repositories/email-verification.repository');
   const { TokenService } = require('../services/token.service');
   
-  // Repositories
-  logger.info('Registering UserRepository...');
-  container.registerSingleton('UserRepository', UserRepository);
+  // Repositories - Use mocks in development
+  logger.info('Registering Mock UserRepository for development...');
+  container.registerSingleton('UserRepository', MockUserRepository);
   logger.info('Registering other repositories...');
-  container.registerSingleton('RefreshTokenRepository', RefreshTokenRepository);
-  container.registerSingleton('EmailVerificationRepository', EmailVerificationRepository);
+  container.registerSingleton('RefreshTokenRepository', MockRefreshTokenRepository);
+  container.registerSingleton('EmailVerificationRepository', MockEmailVerificationRepository);
   container.registerSingleton('LoginAttemptRepository', MockLoginAttemptRepository);
   container.registerSingleton(AuthRepository, MockAuthRepository);
 
@@ -378,6 +485,19 @@ export function setupContainer() {
   container.registerInstance('DatabasePool', pool);
   container.register('ArticleRepository', { useClass: PgArticleRepository });
   container.registerSingleton('ArticleService', ArticleService);
+
+  // Like service and repositories
+  logger.info('Registering like service and repositories...');
+  const { PostgresLikeRepository, PostgresArticleStatsRepository } = require('../repositories/like.repository');
+  const { LikeService } = require('../../application/services/like.service');
+  
+  container.register('LikeRepository', { 
+    useFactory: () => new PostgresLikeRepository(pool)
+  });
+  container.register('ArticleStatsRepository', { 
+    useFactory: () => new PostgresArticleStatsRepository(pool)
+  });
+  container.registerSingleton('LikeService', LikeService);
   
   // Message Service 등록
   const messageService = createMessageService(pool);
@@ -397,6 +517,10 @@ export function setupContainer() {
   container.registerSingleton(AuthController, AuthController);
   container.registerSingleton(ArticleController, ArticleController);
   container.registerSingleton(AdminArticleController, AdminArticleController);
+  
+  // Mobile controllers
+  const { MobileArticleController } = require('../web/controllers/mobile-article.controller');
+  container.registerSingleton(MobileArticleController, MobileArticleController);
 
   // Admin services registration
   logger.info('Registering admin services...');

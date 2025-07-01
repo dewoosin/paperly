@@ -1,5 +1,3 @@
-// /Users/workspace/paperly/apps/backend/src/infrastructure/web/routes/admin.routes.ts
-
 import { Router } from 'express';
 import { container } from 'tsyringe';
 import { AdminAuthController } from '../controllers/admin-auth.controller';
@@ -14,15 +12,16 @@ import {
 } from '../middleware/admin-auth.middleware';
 import { validateInput } from '../middleware/validation.middleware';
 import { rateLimit } from 'express-rate-limit';
+import { Logger } from '../../logging/Logger';
+import { requireAdminClient } from '../middleware/client-auth.middleware';
+import { errorHandler, notFoundHandler } from '../middleware/error-handler.middleware';
 
-/**
- * 관리자 라우트 설정
- * 
- * 관리자 인증, 사용자 관리, 시스템 관리 등의 API 엔드포인트를 정의합니다.
- * 모든 관리자 API는 '/admin' 접두사를 가집니다.
- */
+const logger = new Logger('AdminRoutes');
+const router = Router();
 
-const adminRouter = Router();
+interface Controller {
+  router: Router;
+}
 
 // 관리자 컨트롤러 인스턴스 생성
 const adminAuthController = container.resolve(AdminAuthController);
@@ -48,7 +47,21 @@ const adminLoginLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-adminRouter.post('/auth/login', 
+// Admin API Info
+router.get('/', (req, res) => {
+  res.json({
+    name: 'Paperly Admin API',
+    version: '1.0.0',
+    client: 'admin',
+    status: 'running',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Admin Authentication Routes
+const authRouter = Router();
+
+authRouter.post('/login', 
   adminLoginLimiter,
   validateInput({
     email: { required: true, type: 'email' },
@@ -57,43 +70,68 @@ adminRouter.post('/auth/login',
   (req, res) => adminAuthController.login(req, res)
 );
 
-// 관리자 토큰 새로고침
-adminRouter.post('/auth/refresh', 
+authRouter.post('/refresh', 
   (req, res) => adminAuthController.refreshToken(req, res)
 );
 
-// 관리자 로그아웃
-adminRouter.post('/auth/logout', 
+authRouter.post('/logout', 
   authMiddleware,
   requireAdminRole,
   (req, res) => adminAuthController.logout(req, res)
 );
 
-// 현재 관리자 정보 조회
-adminRouter.get('/auth/me', 
+authRouter.get('/me', 
   authMiddleware,
   requireAdminRole,
   (req, res) => adminAuthController.getCurrentUser(req, res)
 );
 
-// 관리자 권한 확인
-adminRouter.get('/auth/verify', 
+authRouter.get('/verify', 
   (req, res) => adminAuthController.verifyAdmin(req, res)
 );
 
-// ============================================================================
-// 👥 사용자 관리 라우트
-// ============================================================================
+// Admin Users Management Routes
+const usersRouter = Router();
 
-// 모든 관리자 사용자 목록 조회
-adminRouter.get('/users/admins', 
+usersRouter.get('/', 
+  authMiddleware,
+  requireAdminRole,
+  (req, res) => {
+    res.json({ message: 'Get all users', user: req.user });
+  }
+);
+
+usersRouter.get('/admins', 
   authMiddleware,
   requireAdminRole,
   (req, res) => adminAuthController.getAdminUsers(req, res)
 );
 
-// 사용자에게 관리자 역할 할당 (최고 관리자 권한 필요)
-adminRouter.post('/users/:userId/assign-role', 
+usersRouter.get('/:id', 
+  authMiddleware,
+  requireAdminRole,
+  (req, res) => {
+    res.json({ message: 'Get user by ID', userId: req.params.id, user: req.user });
+  }
+);
+
+usersRouter.put('/:id', 
+  authMiddleware,
+  requireAdminRole,
+  (req, res) => {
+    res.json({ message: 'Update user', userId: req.params.id, user: req.user });
+  }
+);
+
+usersRouter.delete('/:id', 
+  authMiddleware,
+  requireSuperAdminRole,
+  (req, res) => {
+    res.json({ message: 'Delete user', userId: req.params.id, user: req.user });
+  }
+);
+
+usersRouter.post('/:userId/assign-role', 
   authMiddleware,
   requireSuperAdminRole,
   validateInput({
@@ -103,60 +141,143 @@ adminRouter.post('/users/:userId/assign-role',
   (req, res) => adminAuthController.assignRole(req, res)
 );
 
-// 사용자의 관리자 역할 제거 (최고 관리자 권한 필요)
-adminRouter.delete('/users/:userId/remove-role', 
+usersRouter.delete('/:userId/remove-role', 
   authMiddleware,
   requireSuperAdminRole,
   (req, res) => adminAuthController.removeRole(req, res)
 );
 
-// ============================================================================
-// 📊 시스템 관리 라우트 (미래 확장용)
-// ============================================================================
+// Admin Writers Management Routes
+const writersRouter = Router();
 
-// 시스템 통계 조회
-adminRouter.get('/stats/overview', 
+function setupAdminWriterRoutes(): Router {
+  try {
+    const { WriterController } = require('../controllers/writer.controller');
+    const writerController = container.resolve(WriterController) as Controller;
+    return writerController.router;
+  } catch (error) {
+    logger.error('Admin writer controller setup failed:', error);
+    throw error;
+  }
+}
+
+writersRouter.use('/', authMiddleware, requireAdminRole, (req, res, next) => {
+  try {
+    const adminWriterRouter = setupAdminWriterRoutes();
+    adminWriterRouter(req, res, next);
+  } catch (error) {
+    logger.error('Admin writer route setup failed:', error);
+    next(error);
+  }
+});
+
+writersRouter.get('/pending', 
   authMiddleware,
   requireAdminRole,
   (req, res) => {
-    // TODO: 시스템 통계 컨트롤러 구현
-    res.status(501).json({
-      success: false,
-      error: {
-        code: 'NOT_IMPLEMENTED',
-        message: '아직 구현되지 않은 기능입니다'
-      }
-    });
+    res.json({ message: 'Get pending writer applications', user: req.user });
   }
 );
 
-// ============================================================================
-// 🛡️ 보안 모니터링 라우트
-// ============================================================================
+writersRouter.put('/:id/approve', 
+  authMiddleware,
+  requireAdminRole,
+  (req, res) => {
+    res.json({ message: 'Approve writer', writerId: req.params.id, user: req.user });
+  }
+);
 
-// 보안 이벤트 목록 조회
-adminRouter.get('/security/events', 
+writersRouter.put('/:id/reject', 
+  authMiddleware,
+  requireAdminRole,
+  (req, res) => {
+    res.json({ message: 'Reject writer', writerId: req.params.id, user: req.user });
+  }
+);
+
+writersRouter.get('/:id/analytics', 
+  authMiddleware,
+  requireAdminRole,
+  (req, res) => {
+    res.json({ message: 'Get writer analytics', writerId: req.params.id, user: req.user });
+  }
+);
+
+// Admin Articles Management Routes
+const articlesRouter = Router();
+
+articlesRouter.use('/', createAdminArticleRoutes(adminArticleController));
+
+// Admin Categories Management Routes
+const categoriesRouter = Router();
+
+function setupAdminCategoryRoutes(): Router {
+  try {
+    const { CategoryController } = require('../controllers/category.controller');
+    const categoryController = container.resolve(CategoryController) as Controller;
+    return categoryController.router;
+  } catch (error) {
+    logger.error('Admin category controller setup failed:', error);
+    throw error;
+  }
+}
+
+categoriesRouter.use('/', authMiddleware, requireAdminRole, (req, res, next) => {
+  try {
+    const adminCategoryRouter = setupAdminCategoryRoutes();
+    adminCategoryRouter(req, res, next);
+  } catch (error) {
+    logger.error('Admin category route setup failed:', error);
+    next(error);
+  }
+});
+
+categoriesRouter.post('/', 
+  authMiddleware,
+  requireAdminRole,
+  (req, res) => {
+    res.json({ message: 'Create category', user: req.user });
+  }
+);
+
+categoriesRouter.put('/:id', 
+  authMiddleware,
+  requireAdminRole,
+  (req, res) => {
+    res.json({ message: 'Update category', categoryId: req.params.id, user: req.user });
+  }
+);
+
+categoriesRouter.delete('/:id', 
+  authMiddleware,
+  requireAdminRole,
+  (req, res) => {
+    res.json({ message: 'Delete category', categoryId: req.params.id, user: req.user });
+  }
+);
+
+// Admin Security Routes
+const securityRouter = Router();
+
+securityRouter.get('/events', 
   authMiddleware,
   requireAdminRole,
   (req, res) => securityMonitorController.getSecurityEvents(req, res)
 );
 
-// 보안 이벤트 상세 조회
-adminRouter.get('/security/events/:eventId', 
+securityRouter.get('/events/:eventId', 
   authMiddleware,
   requireAdminRole,
   (req, res) => securityMonitorController.getSecurityEvent(req, res)
 );
 
-// 보안 통계 조회
-adminRouter.get('/security/stats', 
+securityRouter.get('/stats', 
   authMiddleware,
   requireAdminRole,
   (req, res) => securityMonitorController.getSecurityStats(req, res)
 );
 
-// IP 차단
-adminRouter.post('/security/block-ip', 
+securityRouter.post('/block-ip', 
   authMiddleware,
   requireAdminRole,
   validateInput({
@@ -167,22 +288,19 @@ adminRouter.post('/security/block-ip',
   (req, res) => securityMonitorController.blockIP(req, res)
 );
 
-// IP 차단 해제
-adminRouter.delete('/security/unblock-ip/:ip', 
+securityRouter.delete('/unblock-ip/:ip', 
   authMiddleware,
   requireAdminRole,
   (req, res) => securityMonitorController.unblockIP(req, res)
 );
 
-// 차단된 IP 목록 조회
-adminRouter.get('/security/blocked-ips', 
+securityRouter.get('/blocked-ips', 
   authMiddleware,
   requireAdminRole,
   (req, res) => securityMonitorController.getBlockedIPs(req, res)
 );
 
-// 보안 이벤트 상태 업데이트
-adminRouter.patch('/security/events/:eventId/status', 
+securityRouter.patch('/events/:eventId/status', 
   authMiddleware,
   requireAdminRole,
   validateInput({
@@ -196,110 +314,16 @@ adminRouter.patch('/security/events/:eventId/status',
   (req, res) => securityMonitorController.updateEventStatus(req, res)
 );
 
-// 실시간 보안 이벤트 스트림
-adminRouter.get('/security/events/stream', 
+securityRouter.get('/events/stream', 
   authMiddleware,
   requireAdminRole,
   (req, res) => securityMonitorController.getEventStream(req, res)
 );
 
-// 시스템 로그 조회
-adminRouter.get('/logs', 
-  authMiddleware,
-  requirePermissions('logs:read'),
-  (req, res) => {
-    // TODO: 로그 조회 컨트롤러 구현
-    res.status(501).json({
-      success: false,
-      error: {
-        code: 'NOT_IMPLEMENTED',
-        message: '아직 구현되지 않은 기능입니다'
-      }
-    });
-  }
-);
+// Admin System Routes
+const systemRouter = Router();
 
-// 공통코드 관리
-adminRouter.get('/codes', 
-  authMiddleware,
-  requirePermissions('codes:read'),
-  (req, res) => {
-    // TODO: 공통코드 컨트롤러 구현
-    res.status(501).json({
-      success: false,
-      error: {
-        code: 'NOT_IMPLEMENTED',
-        message: '아직 구현되지 않은 기능입니다'
-      }
-    });
-  }
-);
-
-// 메시지코드 관리
-adminRouter.get('/messages', 
-  authMiddleware,
-  requirePermissions('messages:read'),
-  (req, res) => {
-    // TODO: 메시지코드 컨트롤러 구현
-    res.status(501).json({
-      success: false,
-      error: {
-        code: 'NOT_IMPLEMENTED',
-        message: '아직 구현되지 않은 기능입니다'
-      }
-    });
-  }
-);
-
-// ============================================================================
-// 📝 콘텐츠 관리 라우트
-// ============================================================================
-
-// 기사 관리 라우트 마운트
-adminRouter.use('/articles', createAdminArticleRoutes(adminArticleController));
-
-// ============================================================================
-// 🔧 시스템 설정 라우트
-// ============================================================================
-
-// 시스템 설정 조회
-adminRouter.get('/settings', 
-  authMiddleware,
-  requireSuperAdminRole,
-  (req, res) => {
-    // TODO: 시스템 설정 컨트롤러 구현
-    res.status(501).json({
-      success: false,
-      error: {
-        code: 'NOT_IMPLEMENTED',
-        message: '아직 구현되지 않은 기능입니다'
-      }
-    });
-  }
-);
-
-// 시스템 설정 수정
-adminRouter.put('/settings', 
-  authMiddleware,
-  requireSuperAdminRole,
-  (req, res) => {
-    // TODO: 시스템 설정 컨트롤러 구현
-    res.status(501).json({
-      success: false,
-      error: {
-        code: 'NOT_IMPLEMENTED',
-        message: '아직 구현되지 않은 기능입니다'
-      }
-    });
-  }
-);
-
-// ============================================================================
-// 🏥 시스템 헬스체크
-// ============================================================================
-
-// 관리자 API 헬스체크
-adminRouter.get('/health', (req, res) => {
+systemRouter.get('/health', (req, res) => {
   res.status(200).json({
     success: true,
     data: {
@@ -311,4 +335,78 @@ adminRouter.get('/health', (req, res) => {
   });
 });
 
-export { adminRouter };
+systemRouter.get('/stats', 
+  authMiddleware,
+  requireAdminRole,
+  (req, res) => {
+    res.status(501).json({
+      success: false,
+      error: {
+        code: 'NOT_IMPLEMENTED',
+        message: '아직 구현되지 않은 기능입니다'
+      }
+    });
+  }
+);
+
+systemRouter.get('/settings', 
+  authMiddleware,
+  requireSuperAdminRole,
+  (req, res) => {
+    res.status(501).json({
+      success: false,
+      error: {
+        code: 'NOT_IMPLEMENTED',
+        message: '아직 구현되지 않은 기능입니다'
+      }
+    });
+  }
+);
+
+systemRouter.put('/settings', 
+  authMiddleware,
+  requireSuperAdminRole,
+  (req, res) => {
+    res.status(501).json({
+      success: false,
+      error: {
+        code: 'NOT_IMPLEMENTED',
+        message: '아직 구현되지 않은 기능입니다'
+      }
+    });
+  }
+);
+
+systemRouter.get('/logs', 
+  authMiddleware,
+  requirePermissions('logs:read'),
+  (req, res) => {
+    res.status(501).json({
+      success: false,
+      error: {
+        code: 'NOT_IMPLEMENTED',
+        message: '아직 구현되지 않은 기능입니다'
+      }
+    });
+  }
+);
+
+// Apply admin client validation to all routes
+router.use(requireAdminClient);
+
+// Register admin-specific routes with proper middleware
+router.use('/auth', authRouter);
+router.use('/users', usersRouter);
+router.use('/writers', writersRouter);
+router.use('/articles', articlesRouter);
+router.use('/categories', categoriesRouter);
+router.use('/security', securityRouter);
+router.use('/system', systemRouter);
+
+// Error handling
+router.use(notFoundHandler);
+router.use(errorHandler);
+
+logger.info('Admin API routes initialized with client validation and error handling');
+
+export { router as adminRouter };

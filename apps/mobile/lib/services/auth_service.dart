@@ -20,10 +20,11 @@ import 'dart:convert';                                    // JSON 인코딩/디�
 import 'package:dio/dio.dart';                           // HTTP 클라이언트
 import 'package:flutter/foundation.dart';                // 플랫폼 감지
 import 'package:device_info_plus/device_info_plus.dart'; // 디바이스 정보
-import 'package:shared_preferences/shared_preferences.dart'; // 로컬 저장소
 import '../models/auth_models.dart';                     // 인증 관련 모델
 import '../config/api_config.dart';                      // API 설정
 import '../utils/logger.dart';                           // 로깅 유틸리티
+import 'error_translation_service.dart';                 // 에러 번역 서비스
+import 'secure_storage_service.dart';                    // 보안 저장소 서비스
 
 /// 인증 서비스 클래스
 /// 
@@ -36,8 +37,12 @@ class AuthService {
   // ============================================================================
   
   final Dio _dio;                                       // HTTP 클라이언트
-  final SharedPreferences _prefs;                       // 로컬 저장소
+  final SecureStorageService _secureStorage;             // 보안 저장소
   final DeviceInfoPlugin _deviceInfo = DeviceInfoPlugin(); // 디바이스 정보 플러그인
+  
+  // 토큰 갱신 동시성 제어를 위한 변수들
+  Future<void>? _refreshTokenFuture;                    // 진행 중인 토큰 갱신 작업
+  bool _isRefreshing = false;                           // 토큰 갱신 진행 상태
   
   // ============================================================================
   // 🔑 저장소 키 상수들
@@ -52,13 +57,13 @@ class AuthService {
   /// 
   /// 매개변수:
   /// - dio: HTTP 요청을 위한 Dio 인스턴스
-  /// - prefs: 로컬 데이터 저장을 위한 SharedPreferences 인스턴스
+  /// - secureStorage: 보안 데이터 저장을 위한 SecureStorageService 인스턴스
   /// 
   /// 생성과 동시에 Dio 인터셉터를 설정하여 자동 토큰 관리를 시작합니다.
   AuthService({
     required Dio dio,
-    required SharedPreferences prefs,
-  }) : _dio = dio, _prefs = prefs {
+    required SecureStorageService secureStorage,
+  }) : _dio = dio, _secureStorage = secureStorage {
     _setupInterceptors();
   }
 
@@ -83,7 +88,7 @@ class AuthService {
           // 디바이스 식별을 위한 고유 ID 헤더 추가
           // 서버에서 세션 관리 및 보안 목적으로 사용
           final deviceId = await _getDeviceId();
-          options.headers['X-Device-Id'] = deviceId;
+          options.headers['x-device-id'] = deviceId;
           
           handler.next(options);
         },
@@ -94,8 +99,15 @@ class AuthService {
             // 무한 루프 방지를 위한 조건 체크
             if (!error.requestOptions.path.contains('/auth/refresh')) {
               try {
-                // Refresh Token을 사용하여 새로운 Access Token 발급
-                await refreshTokens();
+                // 동시성 제어: 이미 진행 중인 토큰 갱신이 있으면 그 결과를 기다림
+                if (_isRefreshing && _refreshTokenFuture != null) {
+                  logger.i('토큰 갱신 대기 중...');
+                  await _refreshTokenFuture;
+                } else {
+                  // 새로운 토큰 갱신 시작
+                  _refreshTokenFuture = _performTokenRefresh();
+                  await _refreshTokenFuture;
+                }
                 
                 // 새 토큰으로 원래 요청 재시도
                 final clonedRequest = await _retryRequest(error.requestOptions);
@@ -137,13 +149,7 @@ class AuthService {
       
       final response = await _dio.post(
         '/auth/register',
-        data: {
-          'email': request.email,
-          'password': request.password,
-          'name': request.name,
-          'birthDate': '${request.birthDate.year.toString().padLeft(4, '0')}-${request.birthDate.month.toString().padLeft(2, '0')}-${request.birthDate.day.toString().padLeft(2, '0')}',
-          'gender': request.gender?.name,
-        },
+        data: request.toJson(),
       );
 
       final authResponse = AuthResponse.fromJson(response.data['data']);
@@ -193,25 +199,50 @@ class AuthService {
     }
   }
 
-  /// JWT 토큰 갱신
+  /// JWT 토큰 갱신 (공개 메서드)
   /// 
   /// Refresh Token을 사용하여 새로운 Access Token을 발급받습니다.
-  /// Access Token이 만료되었을 때 자동으로 호출되거나 수동으로 호출할 수 있습니다.
+  /// 동시성 제어가 적용되어 여러 요청이 동시에 들어와도 안전합니다.
+  /// 
+  /// 과정:
+  /// 1. 진행 중인 토큰 갱신 작업이 있는지 확인
+  /// 2. 있으면 대기, 없으면 새로 시작
+  /// 3. 토큰 갱신 완료 후 상태 초기화
+  Future<void> refreshTokens() async {
+    if (_isRefreshing && _refreshTokenFuture != null) {
+      // 이미 진행 중인 토큰 갱신이 있으면 그 결과를 기다림
+      logger.i('토큰 갱신 대기 중...');
+      await _refreshTokenFuture;
+      return;
+    }
+    
+    // 새로운 토큰 갱신 시작
+    _refreshTokenFuture = _performTokenRefresh();
+    await _refreshTokenFuture;
+  }
+  
+  /// 실제 토큰 갱신 작업 수행 (내부 메서드)
+  /// 
+  /// 동시성 제어 플래그를 관리하며 실제 토큰 갱신을 수행합니다.
   /// 
   /// 과정:
   /// 1. 저장된 Refresh Token 확인
   /// 2. 서버에 토큰 갱신 요청
   /// 3. 새로운 토큰들을 로컬 저장소에 저장
+  /// 4. 갱신 상태 플래그 정리
   /// 
   /// 예외:
   /// - Exception: Refresh Token이 없거나 만료된 경우
-  Future<void> refreshTokens() async {
+  Future<void> _performTokenRefresh() async {
+    _isRefreshing = true;
+    
     try {
       final refreshToken = await getRefreshToken();
       if (refreshToken == null) {
         throw Exception('Refresh token not found');
       }
 
+      logger.i('토큰 갱신 시작');
       final response = await _dio.post(
         '/auth/refresh',
         data: {'refreshToken': refreshToken},
@@ -224,6 +255,10 @@ class AuthService {
     } on DioException catch (e) {
       logger.e('토큰 갱신 실패', error: e);
       throw _handleError(e);
+    } finally {
+      // 갱신 상태 정리
+      _isRefreshing = false;
+      _refreshTokenFuture = null;
     }
   }
 
@@ -324,11 +359,11 @@ class AuthService {
 
   /// 현재 로그인한 사용자 정보
   Future<User?> getCurrentUser() async {
-    final userData = _prefs.getString(_userKey);
+    final userData = await _secureStorage.getUserData();
     if (userData == null) return null;
     
     try {
-      return User.fromJson(json.decode(userData));
+      return User.fromJson(userData);
     } catch (e) {
       logger.e('사용자 정보 파싱 실패', error: e);
       return null;
@@ -337,12 +372,12 @@ class AuthService {
 
   /// Access Token 가져오기
   Future<String?> getAccessToken() async {
-    return _prefs.getString(_accessTokenKey);
+    return await _secureStorage.getAccessToken();
   }
 
   /// Refresh Token 가져오기
   Future<String?> getRefreshToken() async {
-    return _prefs.getString(_refreshTokenKey);
+    return await _secureStorage.getRefreshToken();
   }
 
   /// 로그인 상태 확인
@@ -360,8 +395,7 @@ class AuthService {
 
   /// 토큰 저장
   Future<void> _saveTokens(AuthTokens tokens) async {
-    await _prefs.setString(_accessTokenKey, tokens.accessToken);
-    await _prefs.setString(_refreshTokenKey, tokens.refreshToken);
+    await _secureStorage.saveTokens(tokens.accessToken, tokens.refreshToken);
   }
 
   /// 사용자 정보 저장
@@ -375,14 +409,12 @@ class AuthService {
       'birthDate': user.birthDate?.toIso8601String(),
       'gender': user.gender?.toString().split('.').last,
     };
-    await _prefs.setString(_userKey, json.encode(userJson));
+    await _secureStorage.saveUserData(userJson);
   }
 
   /// 인증 데이터 삭제
   Future<void> _clearAuthData() async {
-    await _prefs.remove(_accessTokenKey);
-    await _prefs.remove(_refreshTokenKey);
-    await _prefs.remove(_userKey);
+    await _secureStorage.clearAuthData();
   }
 
   /// 디바이스 고유 ID 생성 및 관리
@@ -400,7 +432,7 @@ class AuthService {
   /// - String: 기기 고유 식별자
   Future<String> _getDeviceId() async {
     // 저장된 디바이스 ID 확인
-    String? storedDeviceId = _prefs.getString(_deviceIdKey);
+    String? storedDeviceId = await _secureStorage.getDeviceId();
     if (storedDeviceId != null && storedDeviceId.isNotEmpty) {
       return storedDeviceId;
     }
@@ -439,7 +471,7 @@ class AuthService {
     }
     
     // 생성된 디바이스 ID 저장
-    await _prefs.setString(_deviceIdKey, deviceId);
+    await _secureStorage.saveDeviceId(deviceId);
     logger.i('새 디바이스 ID 생성 및 저장: $deviceId');
     
     return deviceId;
@@ -491,32 +523,29 @@ class AuthService {
   /// - Exception: 사용자에게 표시할 수 있는 에러 메시지를 포함한 예외
   Exception _handleError(DioException error) {
     if (error.response != null) {
-      // 서버 응답 구조에 맞게 에러 메시지 추출
-      String message = '요청 처리 중 오류가 발생했습니다';
-      
+      // 에러 번역 서비스를 사용하여 사용자 친화적인 메시지 생성
       final data = error.response!.data;
       if (data is Map<String, dynamic>) {
-        // 새로운 메시지 코드 응답 구조: { "success": false, "message": "...", "error": { ... } }
-        if (data['message'] != null) {
-          message = data['message'];
-        }
-        // 중첩된 에러 구조: { "error": { "message": "..." } }
-        else if (data['error'] != null && data['error']['message'] != null) {
-          message = data['error']['message'];
-        }
+        final translatedMessage = ErrorTranslationService.translateFromResponse(data);
+        return Exception(translatedMessage);
       }
       
-      return Exception(message);
+      // 응답 데이터가 없는 경우 HTTP 상태 코드 기반 메시지
+      final statusCode = error.response!.statusCode ?? 0;
+      final httpMessage = ErrorTranslationService.getHttpErrorMessage(statusCode);
+      return Exception(httpMessage);
     }
     
+    // 네트워크 에러인 경우
     if (error.type == DioExceptionType.connectionTimeout) {
-      return Exception('연결 시간이 초과되었습니다');
+      return Exception(ErrorTranslationService.translate('NETWORK.TIMEOUT'));
     }
     
     if (error.type == DioExceptionType.connectionError) {
-      return Exception('네트워크 연결을 확인해주세요');
+      return Exception(ErrorTranslationService.translate('NETWORK.CONNECTION_ERROR'));
     }
     
-    return Exception('알 수 없는 오류가 발생했습니다');
+    // 기타 에러
+    return Exception(ErrorTranslationService.translate('UNKNOWN_ERROR'));
   }
 }

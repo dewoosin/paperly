@@ -5,7 +5,7 @@ import { AuthRepository } from '../../infrastructure/repositories/auth.repositor
 import { JwtService } from '../../infrastructure/auth/jwt.service';
 import { PasswordService } from '../../infrastructure/auth/password.service';
 import { EmailService } from '../../infrastructure/email/email.service';
-import { User } from '../../domain/entities/User.entity';
+import { User } from '../../domain/entities/user.entity';
 import { Email } from '../../domain/value-objects/email.vo';
 import { Password } from '../../domain/value-objects/password.vo';
 import { UserId } from '../../domain/value-objects/user-id.vo';
@@ -17,11 +17,11 @@ import {
   Gender,
 } from '../../domain/auth/auth.types';
 import {
-  BadRequestError,
   UnauthorizedError,
-  ConflictError,
   NotFoundError,
-} from '../../shared/errors';
+  ConflictError,
+  BadRequestError,
+} from '../../shared/errors/index';
 import { Logger } from '../../infrastructure/logging/Logger';
 import { MESSAGE_CODES } from '../../shared/constants/message-codes';
 
@@ -35,6 +35,7 @@ export class AuthUseCases {
 
   constructor(
     private readonly userRepository: IUserRepository,
+    private readonly authRepository: AuthRepository,
     private readonly emailService?: EmailService
   ) {}
 
@@ -49,21 +50,19 @@ export class AuthUseCases {
     request: RegisterRequest,
     deviceInfo?: { deviceId?: string; userAgent?: string; ipAddress?: string }
   ): Promise<AuthResponse> {
-    this.logger.info('회원가입 시작', { email: request.email });
+    this.this.logger.info('회원가입 시작', { email: request.email });
 
     // 1. 이메일 중복 확인
-    const email = new Email(request.email);
+    const email = Email.create(request.email);
     const existingUser = await this.userRepository.findByEmail(email);
     if (existingUser) {
-      const error = new ConflictError('이미 사용 중인 이메일입니다');
-      error.messageCode = MESSAGE_CODES.AUTH.EMAIL_EXISTS;
-      throw error;
+      throw new ConflictError('이미 사용 중인 이메일입니다', undefined, MESSAGE_CODES.AUTH.EMAIL_EXISTS);
     }
 
     // 2. 비밀번호 강도 검증
     const passwordValidation = PasswordService.validateStrength(request.password);
     if (!passwordValidation.isValid) {
-      throw new BadRequestError(passwordValidation.errors.join(', '));
+      throw new BadRequestError(passwordValidation.errors.join(', '), undefined, MESSAGE_CODES.VALIDATION.PASSWORD_COMPLEXITY);
     }
 
     // 3. 비밀번호 해싱
@@ -71,26 +70,34 @@ export class AuthUseCases {
     const password = Password.fromHash(hashedPassword);
 
     // 4. 사용자 생성
-    const user = new User(
-      UserId.generate(),
+    const user = new User({
+      id: UserId.generate(),
       email,
       password,
-      request.name,
-      false, // 이메일 미인증 상태
-      new Date(request.birthDate),
-      request.gender as Gender | undefined
-    );
+      name: request.name,
+      emailVerified: false, // 이메일 미인증 상태
+      phoneVerified: false,
+      status: 'active',
+      userType: 'reader',
+      birthDate: new Date(request.birthDate),
+      gender: request.gender as Gender | undefined
+    });
 
     // 5. 사용자 저장
     await this.userRepository.save(user);
 
     // 6. JWT 토큰 생성
-    const tokens = JwtService.generateTokenPair(user.id.value, user.email.value);
+    const tokens = JwtService.generateTokenPair(
+      user.id.getValue(), 
+      user.email.getValue(),
+      user.userType,
+      user.userCode || 'RD0001' // 기본값 설정
+    );
 
     // 7. Refresh Token 저장
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7일
-    await AuthRepository.saveRefreshToken(
-      user.id.value,
+    await this.authRepository.saveRefreshToken(
+      user.id.getValue(),
       tokens.refreshToken,
       expiresAt,
       deviceInfo?.deviceId,
@@ -101,26 +108,29 @@ export class AuthUseCases {
     // 8. 이메일 인증 메일 발송
     let emailVerificationSent = false;
     try {
-      const verificationToken = await AuthRepository.createEmailVerificationToken(user.id.value);
+      const token = `verify_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const verificationExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24시간
+      await this.authRepository.createEmailVerificationToken(user.id.getValue(), token, verificationExpiresAt);
+      
       if (this.emailService) {
         await this.emailService.sendVerificationEmail(
-          user.email.value,
+          user.email.getValue(),
           user.name,
-          verificationToken.token
+          token
         );
         emailVerificationSent = true;
       }
     } catch (error) {
-      logger.error('이메일 발송 실패', error);
+      this.logger.error('이메일 발송 실패', error);
       // 이메일 발송 실패해도 회원가입은 성공 처리
     }
 
-    logger.info('회원가입 완료', { userId: user.id.value });
+    this.logger.info('회원가입 완료', { userId: user.id.getValue() });
 
     return {
       user: {
-        id: user.id.value,
-        email: user.email.value,
+        id: user.id.getValue(),
+        email: user.email.getValue(),
         name: user.name,
         emailVerified: user.emailVerified,
         birthDate: user.birthDate,
@@ -142,32 +152,33 @@ export class AuthUseCases {
     request: LoginRequest,
     deviceInfo?: { deviceId?: string; userAgent?: string; ipAddress?: string }
   ): Promise<AuthResponse> {
-    logger.info('로그인 시도', { email: request.email });
+    this.logger.info('로그인 시도', { email: request.email });
 
     // 1. 사용자 조회
-    const email = new Email(request.email);
+    const email = Email.create(request.email);
     const user = await this.userRepository.findByEmail(email);
     if (!user) {
-      const error = new UnauthorizedError('이메일 또는 비밀번호가 올바르지 않습니다');
-      error.messageCode = MESSAGE_CODES.AUTH.INVALID_CREDENTIALS;
-      throw error;
+      throw new UnauthorizedError('이메일 또는 비밀번호가 올바르지 않습니다', undefined, MESSAGE_CODES.AUTH.INVALID_CREDENTIALS);
     }
 
     // 2. 비밀번호 검증
     const isPasswordValid = await user.password.verify(request.password);
     if (!isPasswordValid) {
-      const error = new UnauthorizedError('이메일 또는 비밀번호가 올바르지 않습니다');
-      error.messageCode = MESSAGE_CODES.AUTH.INVALID_CREDENTIALS;
-      throw error;
+      throw new UnauthorizedError('이메일 또는 비밀번호가 올바르지 않습니다', undefined, MESSAGE_CODES.AUTH.INVALID_CREDENTIALS);
     }
 
     // 3. JWT 토큰 생성
-    const tokens = JwtService.generateTokenPair(user.id.value, user.email.value);
+    const tokens = JwtService.generateTokenPair(
+      user.id.getValue(), 
+      user.email.getValue(),
+      user.userType,
+      user.userCode || 'RD0001'
+    );
 
     // 4. Refresh Token 저장
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7일
-    await AuthRepository.saveRefreshToken(
-      user.id.value,
+    await this.authRepository.saveRefreshToken(
+      user.id.getValue(),
       tokens.refreshToken,
       expiresAt,
       deviceInfo?.deviceId,
@@ -175,12 +186,12 @@ export class AuthUseCases {
       deviceInfo?.ipAddress
     );
 
-    logger.info('로그인 성공', { userId: user.id.value });
+    this.logger.info('로그인 성공', { userId: user.id.getValue() });
 
     return {
       user: {
-        id: user.id.value,
-        email: user.email.value,
+        id: user.id.getValue(),
+        email: user.email.getValue(),
         name: user.name,
         emailVerified: user.emailVerified,
         birthDate: user.birthDate,
@@ -197,37 +208,38 @@ export class AuthUseCases {
    * @returns 새로운 토큰 쌍
    */
   async refreshTokens(request: RefreshTokenRequest): Promise<AuthResponse> {
-    logger.info('토큰 갱신 시도');
+    this.logger.info('토큰 갱신 시도');
 
     // 1. Refresh Token 검증
     const decodedToken = JwtService.verifyRefreshToken(request.refreshToken);
 
     // 2. DB에서 토큰 확인
-    const savedToken = await AuthRepository.findRefreshToken(request.refreshToken);
+    const savedToken = await this.authRepository.findRefreshToken(request.refreshToken);
     if (!savedToken) {
-      const error = new UnauthorizedError('유효하지 않은 토큰입니다');
-      error.messageCode = MESSAGE_CODES.AUTH.INVALID_REFRESH_TOKEN;
-      throw error;
+      throw new UnauthorizedError('유효하지 않은 토큰입니다', undefined, MESSAGE_CODES.AUTH.INVALID_REFRESH_TOKEN);
     }
 
     // 3. 사용자 조회
-    const user = await this.userRepository.findById(new UserId(decodedToken.userId));
+    const user = await this.userRepository.findById(UserId.from(decodedToken.userId));
     if (!user) {
-      const error = new UnauthorizedError('사용자를 찾을 수 없습니다');
-      error.messageCode = MESSAGE_CODES.USER.NOT_FOUND;
-      throw error;
+      throw new UnauthorizedError('사용자를 찾을 수 없습니다', undefined, MESSAGE_CODES.USER.NOT_FOUND);
     }
 
     // 4. 기존 토큰 삭제
-    await AuthRepository.deleteRefreshToken(request.refreshToken);
+    await this.authRepository.deleteRefreshToken(request.refreshToken);
 
     // 5. 새로운 토큰 생성
-    const tokens = JwtService.generateTokenPair(user.id.value, user.email.value);
+    const tokens = JwtService.generateTokenPair(
+      user.id.getValue(), 
+      user.email.getValue(),
+      user.userType,
+      user.userCode || 'RD0001'
+    );
 
     // 6. 새로운 Refresh Token 저장
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7일
-    await AuthRepository.saveRefreshToken(
-      user.id.value,
+    await this.authRepository.saveRefreshToken(
+      user.id.getValue(),
       tokens.refreshToken,
       expiresAt,
       savedToken.deviceId,
@@ -235,12 +247,12 @@ export class AuthUseCases {
       savedToken.ipAddress
     );
 
-    logger.info('토큰 갱신 성공', { userId: user.id.value });
+    this.logger.info('토큰 갱신 성공', { userId: user.id.getValue() });
 
     return {
       user: {
-        id: user.id.value,
-        email: user.email.value,
+        id: user.id.getValue(),
+        email: user.email.getValue(),
         name: user.name,
         emailVerified: user.emailVerified,
         birthDate: user.birthDate,
@@ -262,16 +274,16 @@ export class AuthUseCases {
     allDevices: boolean = false,
     userId?: string
   ): Promise<void> {
-    logger.info('로그아웃 시도', { allDevices });
+    this.logger.info('로그아웃 시도', { allDevices });
 
     if (allDevices && userId) {
       // 모든 디바이스에서 로그아웃
-      await AuthRepository.deleteAllUserRefreshTokens(userId);
-      logger.info('모든 디바이스에서 로그아웃 완료', { userId });
+      await this.authRepository.deleteAllUserRefreshTokens(userId);
+      this.logger.info('모든 디바이스에서 로그아웃 완료', { userId });
     } else if (refreshToken) {
       // 현재 디바이스에서만 로그아웃
-      await AuthRepository.deleteRefreshToken(refreshToken);
-      logger.info('로그아웃 완료');
+      await this.authRepository.deleteRefreshToken(refreshToken);
+      this.logger.info('로그아웃 완료');
     }
   }
 
@@ -281,26 +293,24 @@ export class AuthUseCases {
    * @param token - 이메일 인증 토큰
    */
   async verifyEmail(token: string): Promise<void> {
-    logger.info('이메일 인증 시도');
+    this.logger.info('이메일 인증 시도');
 
     // 1. 토큰 조회
-    const verificationToken = await AuthRepository.findEmailVerificationToken(token);
+    const verificationToken = await this.authRepository.findEmailVerificationToken(token);
     if (!verificationToken) {
-      const error = new BadRequestError('유효하지 않은 인증 토큰입니다');
-      error.messageCode = MESSAGE_CODES.AUTH.INVALID_VERIFICATION_CODE;
-      throw error;
+      throw new BadRequestError('유효하지 않은 인증 토큰입니다', undefined, MESSAGE_CODES.AUTH.INVALID_VERIFICATION_CODE);
     }
 
     // 2. 사용자 이메일 인증 상태 업데이트
     await this.userRepository.updateEmailVerified(
-      new UserId(verificationToken.userId),
+      UserId.from(verificationToken.userId),
       true
     );
 
     // 3. 사용한 토큰 삭제
-    await AuthRepository.deleteEmailVerificationToken(token);
+    await this.authRepository.deleteEmailVerificationToken(token);
 
-    logger.info('이메일 인증 완료', { userId: verificationToken.userId });
+    this.logger.info('이메일 인증 완료', { userId: verificationToken.userId });
   }
 
   /**
@@ -309,44 +319,42 @@ export class AuthUseCases {
    * @param userId - 사용자 ID
    */
   async resendVerificationEmail(userId: string): Promise<void> {
-    logger.info('이메일 인증 메일 재발송', { userId });
+    this.logger.info('이메일 인증 메일 재발송', { userId });
 
     // 1. 사용자 조회
-    const user = await this.userRepository.findById(new UserId(userId));
+    const user = await this.userRepository.findById(UserId.from(userId));
     if (!user) {
-      const error = new NotFoundError('사용자를 찾을 수 없습니다');
-      error.messageCode = MESSAGE_CODES.USER.NOT_FOUND;
-      throw error;
+      throw new NotFoundError('사용자를 찾을 수 없습니다', undefined, MESSAGE_CODES.USER.NOT_FOUND);
     }
 
     // 2. 이미 인증된 경우
     if (user.emailVerified) {
-      const error = new BadRequestError('이미 이메일 인증이 완료되었습니다');
-      error.messageCode = MESSAGE_CODES.AUTH.EMAIL_VERIFIED;
-      throw error;
+      throw new BadRequestError('이미 이메일 인증이 완료되었습니다', undefined, MESSAGE_CODES.AUTH.EMAIL_VERIFIED);
     }
 
     // 3. 새로운 인증 토큰 생성
-    const verificationToken = await AuthRepository.createEmailVerificationToken(userId);
+    const token = `verify_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const verificationExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24시간
+    await this.authRepository.createEmailVerificationToken(userId, token, verificationExpiresAt);
 
     // 4. 이메일 발송
     if (this.emailService) {
       await this.emailService.sendVerificationEmail(
-        user.email.value,
+        user.email.getValue(),
         user.name,
-        verificationToken.token
+        token
       );
     } else {
       throw new Error('이메일 서비스를 사용할 수 없습니다');
     }
 
-    logger.info('이메일 인증 메일 재발송 완료', { userId });
+    this.logger.info('이메일 인증 메일 재발송 완료', { userId });
   }
 
   /**
    * 만료된 토큰 정리 (배치 작업용)
    */
   async cleanupExpiredTokens(): Promise<number> {
-    return await AuthRepository.cleanupExpiredTokens();
+    return await this.authRepository.cleanupExpiredTokens();
   }
 }

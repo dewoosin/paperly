@@ -12,31 +12,13 @@ import { rateLimiter } from './middlewares/rateLimit.middleware';
 import { requestId } from './middlewares/requestId.middleware';
 import { requestLogger } from './middlewares/request-logger.middleware';
 import { apiRouter } from '../routes';
+import { getCorsOptions } from './cors.config';
 
 export function createApp(): Application {
   const app = express();
 
-  app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, x-device-id'); // x-device-id 추가
-    
-    // Preflight 요청 처리
-    if (req.method === 'OPTIONS') {
-      res.sendStatus(200);
-      return;
-    }
-    
-    next();
-  });
-  
-  // 기본 CORS 미들웨어도 사용
-  app.use(cors({
-    origin: true,
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID', 'x-device-id'] // x-device-id 추가
-  }));
+  // Secure CORS configuration
+  app.use(cors(getCorsOptions()));
 
   // 보안 헤더 설정 (CORS 이후에)
   app.use(helmet({

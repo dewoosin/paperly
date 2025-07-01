@@ -1,6 +1,6 @@
 // apps/backend/src/domain/repositories/user.repository.ts
 
-import { User } from '../entities/User.entity';
+import { User } from '../entities/user.entity';
 import { Email } from '../value-objects/auth.value-objects';
 import { UserId } from '../value-objects/user-id.value-object';
 
@@ -30,6 +30,16 @@ export interface IUserRepository {
    * 이메일 존재 여부 확인
    */
   existsByEmail(email: Email): Promise<boolean>;
+
+  /**
+   * 사용자명으로 사용자 조회
+   */
+  findByUsername(username: string): Promise<User | null>;
+
+  /**
+   * 사용자명 존재 여부 확인
+   */
+  existsByUsername(username: string): Promise<boolean>;
 
   /**
    * 사용자 삭제

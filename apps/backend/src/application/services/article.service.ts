@@ -1,7 +1,7 @@
 // /Users/workspace/paperly/apps/backend/src/application/services/article.service.ts
 
 import { injectable, inject } from 'tsyringe';
-import { Article, CreateArticleProps, UpdateArticleProps, ArticleStatus } from '../../domain/entities/article.entity';
+import { Article, CreateArticleProps, UpdateArticleProps, ArticleStatus, ArticleVisibility } from '../../domain/entities/article.entity';
 import { ArticleRepository } from '../../infrastructure/repositories/article.repository';
 
 export interface CreateArticleRequest {
@@ -16,7 +16,7 @@ export interface CreateArticleRequest {
   categoryId?: string;
   tagIds?: string[];
   status?: ArticleStatus;
-  visibility?: string;
+  visibility?: ArticleVisibility;
   seoTitle?: string;
   seoDescription?: string;
   scheduledAt?: Date;
@@ -35,7 +35,7 @@ export interface UpdateArticleRequest {
   categoryId?: string;
   tagIds?: string[];
   status?: ArticleStatus;
-  visibility?: string;
+  visibility?: ArticleVisibility;
   seoTitle?: string;
   seoDescription?: string;
   scheduledAt?: Date;

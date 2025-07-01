@@ -2,7 +2,7 @@
 
 import { Pool } from 'pg';
 import { db } from '../config/database.config';
-import { User } from '../../domain/entities/User.entity';
+import { User } from '../../domain/entities/user.entity';
 import { Email } from '../../domain/value-objects/email.vo';
 import { Password } from '../../domain/value-objects/password.vo';
 import { UserId } from '../../domain/value-objects/user-id.vo';
@@ -222,7 +222,10 @@ export class UserRepository implements IUserRepository {
     const client = await db.getClient();
     try {
       const result = await client.query(
-        'SELECT * FROM paperly.users WHERE nickname = $1',
+        `SELECT id, email, password_hash, name, nickname, profile_image_url,
+                email_verified, phone_number, phone_verified,
+                status, user_type, user_code, birth_date, gender, last_login_at, created_at, updated_at
+         FROM paperly.users WHERE nickname = $1`,
         [username]
       );
 

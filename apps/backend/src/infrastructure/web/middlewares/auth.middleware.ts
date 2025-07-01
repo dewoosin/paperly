@@ -7,12 +7,15 @@ import { Logger } from '../../logging/Logger';
 
 const logger = new Logger('AuthMiddleware');
 
+interface AuthenticatedUser {
+  userId: string;
+  email: string;
+  emailVerified: boolean;
+  roles?: string[];
+}
+
 interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    email: string;
-    roles?: string[];
-  };
+  user?: AuthenticatedUser;
 }
 
 export const authMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => {

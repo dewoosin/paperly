@@ -17,6 +17,7 @@ dependencies:
   freezed_annotation: ^2.4.4
   device_info_plus: ^11.5.0
   cupertino_icons: ^1.0.8
+  flutter_secure_storage: ^9.0.0
   
   # Add missing dependencies
   logger: ^2.0.1

@@ -453,7 +453,9 @@ mixin _$RegisterRequest {
   String get name => throw _privateConstructorUsedError; // 사용자 이름
   DateTime get birthDate => throw _privateConstructorUsedError; // 생년월일
   Gender? get gender => throw _privateConstructorUsedError; // 성별 (선택)
-  String get userType => throw _privateConstructorUsedError;
+  String get userType =>
+      throw _privateConstructorUsedError; // 사용자 타입 (기본값: reader)
+  DeviceInfo get deviceInfo => throw _privateConstructorUsedError;
 
   /// Serializes this RegisterRequest to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -479,7 +481,10 @@ abstract class $RegisterRequestCopyWith<$Res> {
     DateTime birthDate,
     Gender? gender,
     String userType,
+    DeviceInfo deviceInfo,
   });
+
+  $DeviceInfoCopyWith<$Res> get deviceInfo;
 }
 
 /// @nodoc
@@ -503,6 +508,7 @@ class _$RegisterRequestCopyWithImpl<$Res, $Val extends RegisterRequest>
     Object? birthDate = null,
     Object? gender = freezed,
     Object? userType = null,
+    Object? deviceInfo = null,
   }) {
     return _then(
       _value.copyWith(
@@ -530,9 +536,23 @@ class _$RegisterRequestCopyWithImpl<$Res, $Val extends RegisterRequest>
                 ? _value.userType
                 : userType // ignore: cast_nullable_to_non_nullable
                       as String,
+            deviceInfo: null == deviceInfo
+                ? _value.deviceInfo
+                : deviceInfo // ignore: cast_nullable_to_non_nullable
+                      as DeviceInfo,
           )
           as $Val,
     );
+  }
+
+  /// Create a copy of RegisterRequest
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $DeviceInfoCopyWith<$Res> get deviceInfo {
+    return $DeviceInfoCopyWith<$Res>(_value.deviceInfo, (value) {
+      return _then(_value.copyWith(deviceInfo: value) as $Val);
+    });
   }
 }
 
@@ -552,7 +572,11 @@ abstract class _$$RegisterRequestImplCopyWith<$Res>
     DateTime birthDate,
     Gender? gender,
     String userType,
+    DeviceInfo deviceInfo,
   });
+
+  @override
+  $DeviceInfoCopyWith<$Res> get deviceInfo;
 }
 
 /// @nodoc
@@ -575,6 +599,7 @@ class __$$RegisterRequestImplCopyWithImpl<$Res>
     Object? birthDate = null,
     Object? gender = freezed,
     Object? userType = null,
+    Object? deviceInfo = null,
   }) {
     return _then(
       _$RegisterRequestImpl(
@@ -602,6 +627,10 @@ class __$$RegisterRequestImplCopyWithImpl<$Res>
             ? _value.userType
             : userType // ignore: cast_nullable_to_non_nullable
                   as String,
+        deviceInfo: null == deviceInfo
+            ? _value.deviceInfo
+            : deviceInfo // ignore: cast_nullable_to_non_nullable
+                  as DeviceInfo,
       ),
     );
   }
@@ -617,6 +646,7 @@ class _$RegisterRequestImpl extends _RegisterRequest {
     required this.birthDate,
     this.gender,
     this.userType = 'reader',
+    required this.deviceInfo,
   }) : super._();
 
   factory _$RegisterRequestImpl.fromJson(Map<String, dynamic> json) =>
@@ -640,10 +670,13 @@ class _$RegisterRequestImpl extends _RegisterRequest {
   @override
   @JsonKey()
   final String userType;
+  // 사용자 타입 (기본값: reader)
+  @override
+  final DeviceInfo deviceInfo;
 
   @override
   String toString() {
-    return 'RegisterRequest(email: $email, password: $password, name: $name, birthDate: $birthDate, gender: $gender, userType: $userType)';
+    return 'RegisterRequest(email: $email, password: $password, name: $name, birthDate: $birthDate, gender: $gender, userType: $userType, deviceInfo: $deviceInfo)';
   }
 
   @override
@@ -659,7 +692,9 @@ class _$RegisterRequestImpl extends _RegisterRequest {
                 other.birthDate == birthDate) &&
             (identical(other.gender, gender) || other.gender == gender) &&
             (identical(other.userType, userType) ||
-                other.userType == userType));
+                other.userType == userType) &&
+            (identical(other.deviceInfo, deviceInfo) ||
+                other.deviceInfo == deviceInfo));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -672,6 +707,7 @@ class _$RegisterRequestImpl extends _RegisterRequest {
     birthDate,
     gender,
     userType,
+    deviceInfo,
   );
 
   /// Create a copy of RegisterRequest
@@ -699,6 +735,7 @@ abstract class _RegisterRequest extends RegisterRequest {
     required final DateTime birthDate,
     final Gender? gender,
     final String userType,
+    required final DeviceInfo deviceInfo,
   }) = _$RegisterRequestImpl;
   const _RegisterRequest._() : super._();
 
@@ -716,13 +753,215 @@ abstract class _RegisterRequest extends RegisterRequest {
   @override
   Gender? get gender; // 성별 (선택)
   @override
-  String get userType;
+  String get userType; // 사용자 타입 (기본값: reader)
+  @override
+  DeviceInfo get deviceInfo;
 
   /// Create a copy of RegisterRequest
   /// with the given fields replaced by the non-null parameter values.
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$RegisterRequestImplCopyWith<_$RegisterRequestImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+DeviceInfo _$DeviceInfoFromJson(Map<String, dynamic> json) {
+  return _DeviceInfo.fromJson(json);
+}
+
+/// @nodoc
+mixin _$DeviceInfo {
+  String get deviceId => throw _privateConstructorUsedError; // 디바이스 고유 식별자
+  String get userAgent => throw _privateConstructorUsedError; // 사용자 에이전트 문자열
+  String? get ipAddress => throw _privateConstructorUsedError;
+
+  /// Serializes this DeviceInfo to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of DeviceInfo
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $DeviceInfoCopyWith<DeviceInfo> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $DeviceInfoCopyWith<$Res> {
+  factory $DeviceInfoCopyWith(
+    DeviceInfo value,
+    $Res Function(DeviceInfo) then,
+  ) = _$DeviceInfoCopyWithImpl<$Res, DeviceInfo>;
+  @useResult
+  $Res call({String deviceId, String userAgent, String? ipAddress});
+}
+
+/// @nodoc
+class _$DeviceInfoCopyWithImpl<$Res, $Val extends DeviceInfo>
+    implements $DeviceInfoCopyWith<$Res> {
+  _$DeviceInfoCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of DeviceInfo
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? deviceId = null,
+    Object? userAgent = null,
+    Object? ipAddress = freezed,
+  }) {
+    return _then(
+      _value.copyWith(
+            deviceId: null == deviceId
+                ? _value.deviceId
+                : deviceId // ignore: cast_nullable_to_non_nullable
+                      as String,
+            userAgent: null == userAgent
+                ? _value.userAgent
+                : userAgent // ignore: cast_nullable_to_non_nullable
+                      as String,
+            ipAddress: freezed == ipAddress
+                ? _value.ipAddress
+                : ipAddress // ignore: cast_nullable_to_non_nullable
+                      as String?,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$DeviceInfoImplCopyWith<$Res>
+    implements $DeviceInfoCopyWith<$Res> {
+  factory _$$DeviceInfoImplCopyWith(
+    _$DeviceInfoImpl value,
+    $Res Function(_$DeviceInfoImpl) then,
+  ) = __$$DeviceInfoImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({String deviceId, String userAgent, String? ipAddress});
+}
+
+/// @nodoc
+class __$$DeviceInfoImplCopyWithImpl<$Res>
+    extends _$DeviceInfoCopyWithImpl<$Res, _$DeviceInfoImpl>
+    implements _$$DeviceInfoImplCopyWith<$Res> {
+  __$$DeviceInfoImplCopyWithImpl(
+    _$DeviceInfoImpl _value,
+    $Res Function(_$DeviceInfoImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of DeviceInfo
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? deviceId = null,
+    Object? userAgent = null,
+    Object? ipAddress = freezed,
+  }) {
+    return _then(
+      _$DeviceInfoImpl(
+        deviceId: null == deviceId
+            ? _value.deviceId
+            : deviceId // ignore: cast_nullable_to_non_nullable
+                  as String,
+        userAgent: null == userAgent
+            ? _value.userAgent
+            : userAgent // ignore: cast_nullable_to_non_nullable
+                  as String,
+        ipAddress: freezed == ipAddress
+            ? _value.ipAddress
+            : ipAddress // ignore: cast_nullable_to_non_nullable
+                  as String?,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$DeviceInfoImpl implements _DeviceInfo {
+  const _$DeviceInfoImpl({
+    required this.deviceId,
+    required this.userAgent,
+    this.ipAddress,
+  });
+
+  factory _$DeviceInfoImpl.fromJson(Map<String, dynamic> json) =>
+      _$$DeviceInfoImplFromJson(json);
+
+  @override
+  final String deviceId;
+  // 디바이스 고유 식별자
+  @override
+  final String userAgent;
+  // 사용자 에이전트 문자열
+  @override
+  final String? ipAddress;
+
+  @override
+  String toString() {
+    return 'DeviceInfo(deviceId: $deviceId, userAgent: $userAgent, ipAddress: $ipAddress)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$DeviceInfoImpl &&
+            (identical(other.deviceId, deviceId) ||
+                other.deviceId == deviceId) &&
+            (identical(other.userAgent, userAgent) ||
+                other.userAgent == userAgent) &&
+            (identical(other.ipAddress, ipAddress) ||
+                other.ipAddress == ipAddress));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, deviceId, userAgent, ipAddress);
+
+  /// Create a copy of DeviceInfo
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$DeviceInfoImplCopyWith<_$DeviceInfoImpl> get copyWith =>
+      __$$DeviceInfoImplCopyWithImpl<_$DeviceInfoImpl>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$DeviceInfoImplToJson(this);
+  }
+}
+
+abstract class _DeviceInfo implements DeviceInfo {
+  const factory _DeviceInfo({
+    required final String deviceId,
+    required final String userAgent,
+    final String? ipAddress,
+  }) = _$DeviceInfoImpl;
+
+  factory _DeviceInfo.fromJson(Map<String, dynamic> json) =
+      _$DeviceInfoImpl.fromJson;
+
+  @override
+  String get deviceId; // 디바이스 고유 식별자
+  @override
+  String get userAgent; // 사용자 에이전트 문자열
+  @override
+  String? get ipAddress;
+
+  /// Create a copy of DeviceInfo
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$DeviceInfoImplCopyWith<_$DeviceInfoImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
 
@@ -733,7 +972,8 @@ LoginRequest _$LoginRequestFromJson(Map<String, dynamic> json) {
 /// @nodoc
 mixin _$LoginRequest {
   String get email => throw _privateConstructorUsedError; // 사용자 이메일
-  String get password => throw _privateConstructorUsedError;
+  String get password => throw _privateConstructorUsedError; // 비밀번호
+  DeviceInfo get deviceInfo => throw _privateConstructorUsedError;
 
   /// Serializes this LoginRequest to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -752,7 +992,9 @@ abstract class $LoginRequestCopyWith<$Res> {
     $Res Function(LoginRequest) then,
   ) = _$LoginRequestCopyWithImpl<$Res, LoginRequest>;
   @useResult
-  $Res call({String email, String password});
+  $Res call({String email, String password, DeviceInfo deviceInfo});
+
+  $DeviceInfoCopyWith<$Res> get deviceInfo;
 }
 
 /// @nodoc
@@ -769,7 +1011,11 @@ class _$LoginRequestCopyWithImpl<$Res, $Val extends LoginRequest>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? email = null, Object? password = null}) {
+  $Res call({
+    Object? email = null,
+    Object? password = null,
+    Object? deviceInfo = null,
+  }) {
     return _then(
       _value.copyWith(
             email: null == email
@@ -780,9 +1026,23 @@ class _$LoginRequestCopyWithImpl<$Res, $Val extends LoginRequest>
                 ? _value.password
                 : password // ignore: cast_nullable_to_non_nullable
                       as String,
+            deviceInfo: null == deviceInfo
+                ? _value.deviceInfo
+                : deviceInfo // ignore: cast_nullable_to_non_nullable
+                      as DeviceInfo,
           )
           as $Val,
     );
+  }
+
+  /// Create a copy of LoginRequest
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $DeviceInfoCopyWith<$Res> get deviceInfo {
+    return $DeviceInfoCopyWith<$Res>(_value.deviceInfo, (value) {
+      return _then(_value.copyWith(deviceInfo: value) as $Val);
+    });
   }
 }
 
@@ -795,7 +1055,10 @@ abstract class _$$LoginRequestImplCopyWith<$Res>
   ) = __$$LoginRequestImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({String email, String password});
+  $Res call({String email, String password, DeviceInfo deviceInfo});
+
+  @override
+  $DeviceInfoCopyWith<$Res> get deviceInfo;
 }
 
 /// @nodoc
@@ -811,7 +1074,11 @@ class __$$LoginRequestImplCopyWithImpl<$Res>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? email = null, Object? password = null}) {
+  $Res call({
+    Object? email = null,
+    Object? password = null,
+    Object? deviceInfo = null,
+  }) {
     return _then(
       _$LoginRequestImpl(
         email: null == email
@@ -822,6 +1089,10 @@ class __$$LoginRequestImplCopyWithImpl<$Res>
             ? _value.password
             : password // ignore: cast_nullable_to_non_nullable
                   as String,
+        deviceInfo: null == deviceInfo
+            ? _value.deviceInfo
+            : deviceInfo // ignore: cast_nullable_to_non_nullable
+                  as DeviceInfo,
       ),
     );
   }
@@ -830,7 +1101,11 @@ class __$$LoginRequestImplCopyWithImpl<$Res>
 /// @nodoc
 @JsonSerializable()
 class _$LoginRequestImpl implements _LoginRequest {
-  const _$LoginRequestImpl({required this.email, required this.password});
+  const _$LoginRequestImpl({
+    required this.email,
+    required this.password,
+    required this.deviceInfo,
+  });
 
   factory _$LoginRequestImpl.fromJson(Map<String, dynamic> json) =>
       _$$LoginRequestImplFromJson(json);
@@ -840,10 +1115,13 @@ class _$LoginRequestImpl implements _LoginRequest {
   // 사용자 이메일
   @override
   final String password;
+  // 비밀번호
+  @override
+  final DeviceInfo deviceInfo;
 
   @override
   String toString() {
-    return 'LoginRequest(email: $email, password: $password)';
+    return 'LoginRequest(email: $email, password: $password, deviceInfo: $deviceInfo)';
   }
 
   @override
@@ -853,12 +1131,14 @@ class _$LoginRequestImpl implements _LoginRequest {
             other is _$LoginRequestImpl &&
             (identical(other.email, email) || other.email == email) &&
             (identical(other.password, password) ||
-                other.password == password));
+                other.password == password) &&
+            (identical(other.deviceInfo, deviceInfo) ||
+                other.deviceInfo == deviceInfo));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(runtimeType, email, password);
+  int get hashCode => Object.hash(runtimeType, email, password, deviceInfo);
 
   /// Create a copy of LoginRequest
   /// with the given fields replaced by the non-null parameter values.
@@ -878,6 +1158,7 @@ abstract class _LoginRequest implements LoginRequest {
   const factory _LoginRequest({
     required final String email,
     required final String password,
+    required final DeviceInfo deviceInfo,
   }) = _$LoginRequestImpl;
 
   factory _LoginRequest.fromJson(Map<String, dynamic> json) =
@@ -886,7 +1167,9 @@ abstract class _LoginRequest implements LoginRequest {
   @override
   String get email; // 사용자 이메일
   @override
-  String get password;
+  String get password; // 비밀번호
+  @override
+  DeviceInfo get deviceInfo;
 
   /// Create a copy of LoginRequest
   /// with the given fields replaced by the non-null parameter values.

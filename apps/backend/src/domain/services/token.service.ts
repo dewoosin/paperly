@@ -1,6 +1,6 @@
 // apps/backend/src/domain/services/token.service.ts (인터페이스)
 
-import { User } from '../entities/User.entity';
+import { User } from '../entities/user.entity';
 import { Token, DeviceInfo } from '../value-objects/auth.value-objects';
 import { UserId } from '../value-objects/user-id.value-object';
 

@@ -106,6 +106,7 @@ class AuthTokens with _$AuthTokens {
 /// - birthDate: 생년월일 (YYYY-MM-DD 형식으로 자동 변환)
 /// - gender: 성별 선택사항
 /// - userType: 사용자 타입 (독자/작가, 기본값: reader)
+/// - deviceInfo: 디바이스 식별 정보
 @freezed
 class RegisterRequest with _$RegisterRequest {
   const RegisterRequest._();         // private 생성자 (커스텀 메서드 추가용)
@@ -117,6 +118,7 @@ class RegisterRequest with _$RegisterRequest {
     required DateTime birthDate,     // 생년월일
     Gender? gender,                  // 성별 (선택)
     @Default('reader') String userType, // 사용자 타입 (기본값: reader)
+    required DeviceInfo deviceInfo,  // 디바이스 정보
   }) = _RegisterRequest;
 
   /// JSON에서 RegisterRequest 객체로 변환
@@ -137,23 +139,43 @@ class RegisterRequest with _$RegisterRequest {
       'gender': gender != null ? _$GenderEnumMap[gender] : null,
       // 사용자 타입 포함
       'userType': userType,
+      // 디바이스 정보 포함
+      'deviceInfo': deviceInfo.toJson(),
     };
   }
+}
+
+/// 디바이스 정보 모델
+/// 
+/// 로그인/회원가입 시 디바이스 식별을 위해 전송하는 정보입니다.
+/// 보안 및 세션 관리를 위해 사용됩니다.
+@freezed
+class DeviceInfo with _$DeviceInfo {
+  const factory DeviceInfo({
+    required String deviceId,        // 디바이스 고유 식별자
+    required String userAgent,       // 사용자 에이전트 문자열
+    String? ipAddress,              // IP 주소 (선택사항)
+  }) = _DeviceInfo;
+
+  /// JSON에서 DeviceInfo 객체로 변환
+  factory DeviceInfo.fromJson(Map<String, dynamic> json) => _$DeviceInfoFromJson(json);
 }
 
 /// 로그인 요청 데이터 모델
 /// 
 /// 기존 사용자가 로그인할 때 서버로 전송하는 인증 정보를 담습니다.
-/// 사용자의 이메일과 비밀번호로 구성되는 간단한 인증 데이터입니다.
+/// 사용자의 이메일과 비밀번호, 그리고 디바이스 정보로 구성됩니다.
 /// 
 /// 필드 설명:
 /// - email: 로그인 ID로 사용할 이메일 주소
 /// - password: 사용자가 입력한 비밀번호 (평문)
+/// - deviceInfo: 디바이스 식별 정보
 @freezed
 class LoginRequest with _$LoginRequest {
   const factory LoginRequest({
     required String email,           // 사용자 이메일
     required String password,        // 비밀번호
+    required DeviceInfo deviceInfo,  // 디바이스 정보
   }) = _LoginRequest;
 
   /// JSON에서 LoginRequest 객체로 변환

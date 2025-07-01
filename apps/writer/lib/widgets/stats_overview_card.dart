@@ -152,7 +152,7 @@ class StatsOverviewCard extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         AnimatedCounter(
-          value: value,
+          value: int.tryParse(value) ?? 0,
           style: WriterTheme.titleStyle.copyWith(
             fontWeight: FontWeight.bold,
             color: color,
@@ -189,7 +189,7 @@ class StatsOverviewCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 AnimatedCounter(
-                  value: value,
+                  value: int.tryParse(value) ?? 0,
                   style: WriterTheme.subtitleStyle.copyWith(
                     fontWeight: FontWeight.bold,
                   ),

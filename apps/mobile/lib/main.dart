@@ -12,13 +12,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';      // 시스템 UI 제어용
 import 'package:flutter/cupertino.dart';     // iOS 스타일 위젯용
 import 'package:provider/provider.dart';     // 상태 관리용
-import 'package:shared_preferences/shared_preferences.dart';  // 로컬 저장소
 import 'package:dio/dio.dart';               // HTTP 클라이언트
 import 'dart:ui' as ui;                      // UI 관련 유틸리티
 import 'theme/muji_theme.dart';              // 앱 테마 설정
 
 // 서비스 & 상태 관리
 import 'services/auth_service.dart';         // 인증 관련 API 서비스
+import 'services/secure_storage_service.dart'; // 보안 저장소 서비스
 import 'services/follow_service.dart';       // 팔로우 관련 API 서비스
 import 'providers/auth_provider.dart';       // 인증 상태 관리
 import 'providers/follow_provider.dart';     // 팔로우 상태 관리
@@ -61,8 +61,8 @@ void main() async {
   
   // 핵심 서비스들 초기화
   
-  // 로컬 저장소: 사용자 설정, 토큰 등 영구 저장용
-  final prefs = await SharedPreferences.getInstance();
+  // 보안 저장소: 토큰, 사용자 정보 등 암호화 저장용
+  final secureStorage = SecureStorageService();
   
   // HTTP 클라이언트: API 통신용
   final dio = Dio(BaseOptions(
@@ -72,7 +72,7 @@ void main() async {
   ));
   
   // 인증 서비스: 로그인, 회원가입, 토큰 관리 등
-  final authService = AuthService(dio: dio, prefs: prefs);
+  final authService = AuthService(dio: dio, secureStorage: secureStorage);
   
   // 팔로우 서비스: 작가 팔로우, 팔로우 목록 관리 등
   final followService = FollowService(dio: dio);

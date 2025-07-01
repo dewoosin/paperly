@@ -101,14 +101,26 @@ function validateEnv(): EnvConfig {
   try {
     const config = envSchema.parse(process.env);
     
-    // JWT_REFRESH_SECRET이 없으면 JWT_SECRET 사용
+    // JWT_REFRESH_SECRET 필수 검증 - 보안상 독립적인 시크릿 사용 권장
     if (!config.JWT_REFRESH_SECRET) {
-      config.JWT_REFRESH_SECRET = config.JWT_SECRET + '-refresh';
+      if (config.NODE_ENV === 'production') {
+        throw new Error('JWT_REFRESH_SECRET는 프로덕션 환경에서 필수입니다. 보안을 위해 JWT_SECRET과 다른 독립적인 값을 사용하세요.');
+      } else {
+        // 개발 환경에서만 fallback 허용 (보안 경고 포함)
+        config.JWT_REFRESH_SECRET = config.JWT_SECRET + '-refresh-dev-only';
+        console.warn('⚠️  보안 경고: JWT_REFRESH_SECRET이 설정되지 않아 fallback을 사용합니다. 프로덕션에서는 독립적인 시크릿을 사용하세요.');
+      }
     }
     
-    // SESSION_SECRET이 없으면 JWT_SECRET 사용
+    // SESSION_SECRET 필수 검증 - 보안상 독립적인 시크릿 사용 권장  
     if (!config.SESSION_SECRET) {
-      config.SESSION_SECRET = config.JWT_SECRET + '-session';
+      if (config.NODE_ENV === 'production') {
+        throw new Error('SESSION_SECRET는 프로덕션 환경에서 필수입니다. 보안을 위해 JWT_SECRET과 다른 독립적인 값을 사용하세요.');
+      } else {
+        // 개발 환경에서만 fallback 허용 (보안 경고 포함)
+        config.SESSION_SECRET = config.JWT_SECRET + '-session-dev-only';
+        console.warn('⚠️  보안 경고: SESSION_SECRET이 설정되지 않아 fallback을 사용합니다. 프로덕션에서는 독립적인 시크릿을 사용하세요.');
+      }
     }
     
     // Logger를 동적으로 import (순환 참조 방지)

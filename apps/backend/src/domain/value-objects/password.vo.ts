@@ -63,6 +63,21 @@ export class Password {
   }
 
   /**
+   * 평문 비밀번호로부터 Password 인스턴스 생성 (해싱하지 않음)
+   * 비밀번호 검증 시에만 사용
+   * 
+   * @param plainPassword - 평문 비밀번호
+   * @returns Password 인스턴스
+   */
+  static fromPlainText(plainPassword: string): Password {
+    if (!plainPassword) {
+      throw new BadRequestError('Plain password is required', undefined, MESSAGE_CODES.VALIDATION.REQUIRED_FIELD_MISSING);
+    }
+    // 평문 비밀번호를 임시로 저장 (검증용)
+    return new Password(plainPassword);
+  }
+
+  /**
    * 이미 해시된 값으로부터 Password 인스턴스 생성
    * (DB에서 조회한 경우)
    * 
@@ -87,6 +102,16 @@ export class Password {
       return false;
     }
     return bcrypt.compare(plainPassword, this.hashedValue);
+  }
+
+  /**
+   * 다른 Password 인스턴스와 비교 (alias for compatibility)
+   * 
+   * @param other - 비교할 Password 인스턴스
+   * @returns 일치 여부
+   */
+  async compare(other: Password): Promise<boolean> {
+    return this.hashedValue === other.hashedValue;
   }
 
   /**

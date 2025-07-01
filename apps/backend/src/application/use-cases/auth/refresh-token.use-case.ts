@@ -3,7 +3,6 @@
 import { inject, injectable } from 'tsyringe';
 import { z } from 'zod';
 import { IUserRepository } from '../../../infrastructure/repositories/user.repository';
-import { JwtService } from '../../../infrastructure/auth/jwt.service';
 import { AuthRepository } from '../../../infrastructure/repositories/auth.repository';
 import { UserId } from '../../../domain/value-objects/user-id.vo';
 import { UnauthorizedError } from '../../../shared/errors';
@@ -72,9 +71,7 @@ export class RefreshTokenUseCase {
         ),
         severity: securityValidation.overallSeverity
       });
-      const error = new UnauthorizedError('입력 데이터에 보안 위협이 감지되었습니다');
-      error.messageCode = MESSAGE_CODES.SECURITY.SUSPICIOUS_ACTIVITY;
-      throw error;
+      throw new UnauthorizedError('입력 데이터에 보안 위협이 감지되었습니다', undefined, MESSAGE_CODES.SECURITY.SUSPICIOUS_ACTIVITY);
     }
 
     // 개별 필드별 보안 검증 및 새니타이징
@@ -114,17 +111,13 @@ export class RefreshTokenUseCase {
       try {
         decodedToken = this.tokenService.verifyRefreshToken(validatedInput.refreshToken);
       } catch (tokenError) {
-        const error = new UnauthorizedError('유효하지 않은 Refresh Token입니다');
-        error.messageCode = MESSAGE_CODES.AUTH.INVALID_REFRESH_TOKEN;
-        throw error;
+        throw new UnauthorizedError('유효하지 않은 Refresh Token입니다', undefined, MESSAGE_CODES.AUTH.INVALID_REFRESH_TOKEN);
       }
 
       // 4. DB에서 토큰 확인
       const savedToken = await this.authRepository.findRefreshToken(validatedInput.refreshToken);
       if (!savedToken) {
-        const error = new UnauthorizedError('존재하지 않는 토큰입니다');
-        error.messageCode = MESSAGE_CODES.AUTH.INVALID_REFRESH_TOKEN;
-        throw error;
+        throw new UnauthorizedError('존재하지 않는 토큰입니다', undefined, MESSAGE_CODES.AUTH.INVALID_REFRESH_TOKEN);
       }
 
       // 5. 토큰의 사용자 ID 일치 확인
@@ -133,17 +126,13 @@ export class RefreshTokenUseCase {
           savedUserId: savedToken.userId,
           tokenUserId: decodedToken.userId
         });
-        const error = new UnauthorizedError('토큰 정보가 일치하지 않습니다');
-        error.messageCode = MESSAGE_CODES.AUTH.INVALID_TOKEN;
-        throw error;
+        throw new UnauthorizedError('토큰 정보가 일치하지 않습니다', undefined, MESSAGE_CODES.AUTH.INVALID_TOKEN);
       }
 
       // 6. 사용자 조회
       const user = await this.userRepository.findById(UserId.from(decodedToken.userId));
       if (!user) {
-        const error = new UnauthorizedError('사용자를 찾을 수 없습니다');
-        error.messageCode = MESSAGE_CODES.USER.NOT_FOUND;
-        throw error;
+        throw new UnauthorizedError('사용자를 찾을 수 없습니다', undefined, MESSAGE_CODES.USER.NOT_FOUND);
       }
 
       // 7. 새로운 토큰 쌍 생성

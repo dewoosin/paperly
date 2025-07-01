@@ -211,7 +211,7 @@ class _FollowersScreenState extends State<FollowersScreen>
         ),
         const SizedBox(height: 8),
         AnimatedCounter(
-          value: value,
+          value: int.tryParse(value) ?? 0,
           style: WriterTheme.titleStyle.copyWith(
             fontWeight: FontWeight.bold,
             color: color,

@@ -1,9 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import '../config/environment.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://localhost:3000/api/v1';
+  static String get baseUrl {
+    final url = ApiConfig.baseUrl;
+    print('🌐 API Base URL: $url');
+    return url;
+  }
   
   final http.Client _client = http.Client();
 
@@ -12,6 +17,7 @@ class ApiService {
     final headers = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
+      'X-Client-Type': 'writer', // Writer 클라이언트 식별 헤더
     };
     
     if (token != null) {
@@ -39,8 +45,10 @@ class ApiService {
 
   // 인증 관련
   Future<Map<String, dynamic>> login(String email, String password) async {
-    print('🔐 로그인 시도: $email');
-    print('🌐 서버 URL: $baseUrl/auth/login');
+    if (ApiConfig.enableDebugLogging) {
+      print('🔐 로그인 시도: $email');
+      print('🌐 서버 URL: $baseUrl/auth/login');
+    }
     
     try {
       final requestBody = {
@@ -49,45 +57,57 @@ class ApiService {
         'deviceInfo': {
           'deviceId': 'writer-app-${Platform.isIOS ? 'ios' : 'android'}',
           'userAgent': 'PaperlyWriter/${Platform.isIOS ? 'iOS' : 'Android'}',
-          'ipAddress': '127.0.0.1', // 로컬 개발용
+          'ipAddress': Platform.isAndroid || Platform.isIOS ? null : '127.0.0.1',
         }
       };
       
-      print('📤 요청 데이터: ${json.encode(requestBody)}');
+      if (ApiConfig.enableDebugLogging) {
+        // Only log non-sensitive parts
+        print('📤 로그인 요청 전송...');
+      }
       
       final response = await _client.post(
         Uri.parse('$baseUrl/auth/login'),
         headers: _getHeaders(),
         body: json.encode(requestBody),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(ApiConfig.requestTimeout);
       
-      print('📥 응답 상태: ${response.statusCode}');
-      print('📥 응답 내용: ${response.body}');
+      if (ApiConfig.enableDebugLogging) {
+        print('📥 응답 상태: ${response.statusCode}');
+      }
       
       final result = _handleResponse(response);
-      print('✅ 로그인 성공!');
+      if (ApiConfig.enableDebugLogging) {
+        print('✅ 로그인 성공!');
+      }
       return result;
       
     } on SocketException catch (e) {
-      print('❌ 네트워크 연결 오류: $e');
+      if (ApiConfig.enableDebugLogging) {
+        print('❌ 네트워크 연결 오류: $e');
+      }
       throw ApiException(
         statusCode: -1,
         message: '서버에 연결할 수 없습니다. 네트워크 연결을 확인해주세요.',
         code: 'NETWORK_ERROR',
       );
     } on HttpException catch (e) {
-      print('❌ HTTP 오류: $e');
+      if (ApiConfig.enableDebugLogging) {
+        print('❌ HTTP 오류: $e');
+      }
       throw ApiException(
         statusCode: -1,
         message: 'HTTP 오류가 발생했습니다.',
         code: 'HTTP_ERROR',
       );
     } catch (e) {
-      print('❌ 로그인 오류: $e');
+      if (ApiConfig.enableDebugLogging) {
+        print('❌ 로그인 오류: $e');
+      }
       if (e is ApiException) rethrow;
       throw ApiException(
         statusCode: -1,
-        message: '로그인 중 오류가 발생했습니다: $e',
+        message: '로그인 중 오류가 발생했습니다.',
         code: 'LOGIN_ERROR',
       );
     }
@@ -103,20 +123,29 @@ class ApiService {
     String userType = 'writer', // 작가 앱에서는 기본값으로 writer 타입 설정
   }) async {
     try {
-      final requestBody = {
+      final requestBody = <String, dynamic>{
         'email': email,
         'password': password,
         'name': name,
         'username': username,
-        'bio': bio,
-        'birthDate': birthDate?.toIso8601String().split('T')[0], // YYYY-MM-DD 형식으로 변환
         'userType': userType, // 사용자 타입 추가
       };
       
-      print('🔐 회원가입 요청 데이터: ${json.encode(requestBody)}');
+      // null이 아닌 경우에만 추가
+      if (bio != null) {
+        requestBody['bio'] = bio;
+      }
+      if (birthDate != null) {
+        requestBody['birthDate'] = birthDate.toIso8601String().split('T')[0]; // YYYY-MM-DD 형식으로 변환
+      }
+      
+      if (ApiConfig.enableDebugLogging) {
+        print('🔐 회원가입 요청 전송...');
+        print('📋 Request body: ${json.encode(requestBody)}');
+      }
       
       final response = await _client.post(
-        Uri.parse('$baseUrl/auth/register'),
+        Uri.parse('$baseUrl/writer/auth/register'),
         headers: _getHeaders(),
         body: json.encode(requestBody),
       );
@@ -549,6 +578,34 @@ class ApiService {
     }
   }
 
+  // 사용자명 중복 확인
+  Future<Map<String, dynamic>> checkUsername(String username) async {
+    try {
+      final url = '$baseUrl/writer/auth/check-username';
+      final headers = _getHeaders();
+      final body = json.encode({'username': username});
+      
+      print('🔍 Username check URL: $url');
+      print('📋 Headers: $headers');
+      print('📦 Body: $body');
+      
+      final response = await _client.post(
+        Uri.parse(url),
+        headers: headers,
+        body: body,
+      );
+      
+      return _handleResponse(response);
+    } on SocketException {
+      // 네트워크 오류 시 mock 응답
+      return _getMockUsernameCheckResponse(username);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      // 기타 오류 시 mock 응답
+      return _getMockUsernameCheckResponse(username);
+    }
+  }
+
   void dispose() {
     _client.close();
   }
@@ -690,6 +747,22 @@ class ApiService {
     };
   }
 
+  Map<String, dynamic> _getMockUsernameCheckResponse(String username) {
+    // 개발용 mock: 특정 사용자명들은 이미 사용 중으로 시뮬레이션
+    final List<String> usedUsernames = [
+      'admin', 'test', 'user', 'writer', 'author', 'paperly'
+    ];
+    
+    final bool isAvailable = !usedUsernames.contains(username.toLowerCase());
+    
+    return {
+      'available': isAvailable,
+      'message': isAvailable 
+          ? '사용 가능한 아이디입니다' 
+          : '이미 사용 중인 아이디입니다'
+    };
+  }
+
   bool _checkProfileCompletion(Map<String, dynamic> profileData) {
     final displayName = profileData['display_name'];
     final bio = profileData['bio'];
@@ -701,6 +774,147 @@ class ApiService {
            bio.toString().isNotEmpty &&
            specialties != null && 
            specialties.isNotEmpty;
+  }
+
+  // Dashboard 관련 메서드들
+  /// 대시보드 메인 메트릭 조회
+  Future<Map<String, dynamic>> getDashboardMetrics({String? token}) async {
+    if (ApiConfig.enableDebugLogging) {
+      print('📊 대시보드 메트릭 요청');
+    }
+    
+    try {
+      final response = await _client.get(
+        Uri.parse('$baseUrl/dashboard/metrics'),
+        headers: _getHeaders(token: token),
+      ).timeout(ApiConfig.requestTimeout);
+      
+      if (ApiConfig.enableDebugLogging) {
+        print('📥 대시보드 메트릭 응답 수신: ${response.statusCode}');
+      }
+      
+      return _handleResponse(response);
+    } catch (e) {
+      if (ApiConfig.enableDebugLogging) {
+        print('❌ 대시보드 메트릭 요청 실패: $e');
+      }
+      if (e is ApiException) rethrow;
+      throw ApiException(
+        statusCode: -1,
+        message: '대시보드 데이터를 불러오는데 실패했습니다.',
+        code: 'DASHBOARD_METRICS_FAILED',
+      );
+    }
+  }
+
+  /// 실시간 메트릭 조회
+  Future<Map<String, dynamic>> getRealtimeMetrics({String? token}) async {
+    if (ApiConfig.enableDebugLogging) {
+      print('⚡ 실시간 메트릭 요청');
+    }
+    
+    try {
+      final response = await _client.get(
+        Uri.parse('$baseUrl/dashboard/metrics/realtime'),
+        headers: _getHeaders(token: token),
+      ).timeout(ApiConfig.requestTimeout);
+      
+      return _handleResponse(response);
+    } catch (e) {
+      if (ApiConfig.enableDebugLogging) {
+        print('⚠️ 실시간 메트릭 요청 실패: $e');
+      }
+      if (e is ApiException) rethrow;
+      throw ApiException(
+        statusCode: -1,
+        message: '실시간 데이터를 불러오는데 실패했습니다.',
+        code: 'REALTIME_METRICS_FAILED',
+      );
+    }
+  }
+
+  /// 상세 메트릭 조회 (기간별)
+  Future<Map<String, dynamic>> getDetailedMetrics({
+    String? token,
+    String? startDate,
+    String? endDate,
+    String granularity = 'day',
+  }) async {
+    try {
+      final queryParams = <String, String>{
+        'granularity': granularity,
+      };
+      
+      if (startDate != null) queryParams['startDate'] = startDate;
+      if (endDate != null) queryParams['endDate'] = endDate;
+      
+      final uri = Uri.parse('$baseUrl/dashboard/metrics/detailed')
+          .replace(queryParameters: queryParams);
+      
+      final response = await _client.get(
+        uri,
+        headers: _getHeaders(token: token),
+      ).timeout(ApiConfig.requestTimeout);
+      
+      return _handleResponse(response);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException(
+        statusCode: -1,
+        message: '상세 메트릭을 불러오는데 실패했습니다.',
+        code: 'DETAILED_METRICS_FAILED',
+      );
+    }
+  }
+
+  /// 기간별 메트릭 조회
+  Future<Map<String, dynamic>> getPeriodMetrics(
+    String period, {
+    String? token,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/dashboard/metrics/period')
+          .replace(queryParameters: {'period': period});
+      
+      final response = await _client.get(
+        uri,
+        headers: _getHeaders(token: token),
+      ).timeout(ApiConfig.requestTimeout);
+      
+      return _handleResponse(response);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException(
+        statusCode: -1,
+        message: '기간별 메트릭을 불러오는데 실패했습니다.',
+        code: 'PERIOD_METRICS_FAILED',
+      );
+    }
+  }
+
+  /// 비교 메트릭 조회
+  Future<Map<String, dynamic>> getComparisonMetrics(
+    String compareWith, {
+    String? token,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/dashboard/metrics/comparison')
+          .replace(queryParameters: {'compareWith': compareWith});
+      
+      final response = await _client.get(
+        uri,
+        headers: _getHeaders(token: token),
+      ).timeout(ApiConfig.requestTimeout);
+      
+      return _handleResponse(response);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException(
+        statusCode: -1,
+        message: '비교 메트릭을 불러오는데 실패했습니다.',
+        code: 'COMPARISON_METRICS_FAILED',
+      );
+    }
   }
 }
 

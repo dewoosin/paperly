@@ -14,6 +14,7 @@ import { Logger } from '../../logging/Logger';
 interface AuthenticatedUser {
   userId: string;
   email: string;
+  emailVerified: boolean;
   role?: string;
   permissions?: string[];
 }

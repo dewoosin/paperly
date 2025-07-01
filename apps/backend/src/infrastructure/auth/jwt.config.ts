@@ -46,15 +46,36 @@ export interface DecodedToken extends JwtPayload {
  * JWT 설정
  * 
  * 환경 변수에서 JWT 관련 설정을 로드합니다.
+ * 보안상 중요한 secret들은 환경 변수가 필수이며, fallback을 제공하지 않습니다.
  */
-export const jwtConfig = JwtConfigSchema.parse({
-  accessTokenSecret: config.JWT_SECRET || 'your-super-secret-jwt-key-change-this',
-  refreshTokenSecret: config.JWT_REFRESH_SECRET || config.JWT_SECRET + '-refresh',
-  accessTokenExpiresIn: config.JWT_ACCESS_EXPIRES_IN || '15m',
-  refreshTokenExpiresIn: config.JWT_REFRESH_EXPIRES_IN || '7d',
-  issuer: 'paperly',
-  audience: 'paperly-app',
-});
+function createJwtConfig() {
+  // 프로덕션 환경에서는 JWT_SECRET이 필수
+  if (config.NODE_ENV === 'production' && !config.JWT_SECRET) {
+    throw new Error('JWT_SECRET 환경 변수는 프로덕션에서 필수입니다. 보안을 위해 안전한 임의의 값을 설정하세요.');
+  }
+  
+  // 개발 환경에서도 JWT_SECRET 누락 시 경고
+  if (!config.JWT_SECRET) {
+    console.warn('⚠️  보안 경고: JWT_SECRET 환경 변수가 설정되지 않았습니다. 개발 환경에서도 안전한 값을 사용하는 것을 권장합니다.');
+  }
+  
+  return JwtConfigSchema.parse({
+    // JWT_SECRET이 없으면 애플리케이션이 실패하도록 함 (보안 강화)
+    accessTokenSecret: config.JWT_SECRET || (() => {
+      throw new Error('JWT_SECRET 환경 변수가 설정되지 않았습니다. .env 파일에 안전한 32자 이상의 시크릿을 설정하세요.');
+    })(),
+    
+    // JWT_REFRESH_SECRET은 env.config.ts에서 이미 검증됨
+    refreshTokenSecret: config.JWT_REFRESH_SECRET,
+    
+    accessTokenExpiresIn: config.JWT_ACCESS_EXPIRES_IN || '15m',
+    refreshTokenExpiresIn: config.JWT_REFRESH_EXPIRES_IN || '7d',
+    issuer: 'paperly',
+    audience: 'paperly-app',
+  });
+}
+
+export const jwtConfig = createJwtConfig();
 
 /**
  * 토큰 만료 시간 계산 헬퍼

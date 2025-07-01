@@ -5,7 +5,7 @@
  * 불변성과 유효성 검증을 보장
  */
 
-import { ValidationError } from '../../shared/errors/BaseError';
+import { ValidationError } from '../../shared/errors/index';
 
 export class Email {
   private readonly value: string;

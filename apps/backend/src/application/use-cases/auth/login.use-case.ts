@@ -26,13 +26,12 @@
 import { inject, injectable } from 'tsyringe';                                       // 의존성 주입 프레임워크
 import { z } from 'zod';                                                             // 런타임 데이터 검증
 import { IUserRepository } from '../../../infrastructure/repositories/user.repository';         // 사용자 데이터 저장소
-import { JwtService } from '../../../infrastructure/auth/jwt.service';                         // JWT 토큰 서비스
 import { AuthRepository } from '../../../infrastructure/repositories/auth.repository';         // 인증 데이터 저장소
 import { Email } from '../../../domain/value-objects/email.vo';                                // 이메일 Value Object
-import { UnauthorizedError, TooManyRequestsError } from '../../../shared/errors';              // 도메인 에러 타입들
+import { UnauthorizedError, TooManyRequestsError } from '../../../shared/errors/index';              // 도메인 에러 타입들
 import { Logger } from '../../../infrastructure/logging/Logger';                               // 구조화된 로깅
 import { DeviceInfo } from '../../../domain/auth/auth.types';                                  // 디바이스 정보 타입
-import { SecurityValidator, FieldType, InputContext } from '../../../infrastructure/security/validators';  // 보안 검증기
+import { SecurityValidator, FieldType, InputContext, sqlInjectionValidator } from '../../../infrastructure/security/validators';  // 보안 검증기
 import { SecuritySanitizer, SanitizationContext, SQLSanitizationContext } from '../../../infrastructure/security/sanitizers';  // 보안 새니타이저
 import { securityMonitor } from '../../../infrastructure/security/monitoring/security-monitor';  // 보안 모니터
 import { MESSAGE_CODES } from '../../../shared/constants/message-codes';                           // 메시지 코드 상수
@@ -157,25 +156,35 @@ export class LoginUseCase {
   ) {}
 
   async execute(input: LoginInput): Promise<LoginOutput> {
-    // TODO: Re-enable security validation after fixing false positives
-    // 1. 입력 데이터 보안 검증
-    // const securityValidation = SecurityValidator.validateAll(JSON.stringify(input), {
-    //   fieldType: FieldType.TEXT,
-    //   inputContext: InputContext.USER_INPUT,
-    //   fieldName: 'loginInput'
-    // });
+    // 1. 입력 데이터 보안 검증 (이메일과 비밀번호 개별 검증)
+    // 이메일은 @ 기호 때문에 XSS 검증에서 false positive가 발생할 수 있으므로 SQL 인젝션만 검증
+    const emailValidation = sqlInjectionValidator.validate(input.email, FieldType.EMAIL, 'email');
+    const passwordValidation = SecurityValidator.validateAll(input.password, {
+      fieldType: FieldType.TEXT,
+      inputContext: InputContext.USER_INPUT,
+      fieldName: 'password'
+    });
 
-    // if (!securityValidation.isValid) {
-    //   this.logger.warn('로그인 입력 보안 위협 감지', {
-    //     threats: securityValidation.xssResult.threats.concat(
-    //       securityValidation.sqlResult.threats,
-    //       securityValidation.pathResult.threats
-    //     ),
-    //     severity: securityValidation.overallSeverity,
-    //     inputPreview: JSON.stringify(input).substring(0, 100)
-    //   });
-    //   throw new UnauthorizedError('입력 데이터에 보안 위협이 감지되었습니다');
-    // }
+    if (!emailValidation.isValid) {
+      this.logger.warn('로그인 이메일 보안 위협 감지', {
+        threats: emailValidation.threats,
+        severity: emailValidation.severity,
+        field: 'email'
+      });
+      throw new UnauthorizedError('입력 데이터에 보안 위협이 감지되었습니다');
+    }
+
+    if (!passwordValidation.isValid) {
+      this.logger.warn('로그인 비밀번호 보안 위협 감지', {
+        threats: passwordValidation.xssResult.threats.concat(
+          passwordValidation.sqlResult.threats,
+          passwordValidation.pathResult.threats
+        ),
+        severity: passwordValidation.overallSeverity,
+        field: 'password'
+      });
+      throw new UnauthorizedError('입력 데이터에 보안 위협이 감지되었습니다');
+    }
 
     // 개별 필드별 보안 검증 및 새니타이징
     const sanitizedInput = {
@@ -223,18 +232,14 @@ export class LoginUseCase {
       if (!user) {
         await this.recordFailedAttempt(validatedInput.email, validatedInput.deviceInfo);
         // 보안상 이메일 존재 여부를 노출하지 않음
-        const error = new UnauthorizedError('이메일 또는 비밀번호가 올바르지 않습니다. 입력하신 정보를 다시 확인해주세요.');
-        error.messageCode = MESSAGE_CODES.AUTH.INVALID_CREDENTIALS;
-        throw error;
+        throw new UnauthorizedError('이메일 또는 비밀번호가 올바르지 않습니다. 입력하신 정보를 다시 확인해주세요.', undefined, MESSAGE_CODES.AUTH.INVALID_CREDENTIALS);
       }
 
       // 5. 비밀번호 검증
       const isPasswordValid = await user.password.verify(validatedInput.password);
       if (!isPasswordValid) {
         await this.recordFailedAttempt(validatedInput.email, validatedInput.deviceInfo);
-        const error = new UnauthorizedError('이메일 또는 비밀번호가 올바르지 않습니다. 입력하신 정보를 다시 확인해주세요.');
-        error.messageCode = MESSAGE_CODES.AUTH.INVALID_CREDENTIALS;
-        throw error;
+        throw new UnauthorizedError('이메일 또는 비밀번호가 올바르지 않습니다. 입력하신 정보를 다시 확인해주세요.', undefined, MESSAGE_CODES.AUTH.INVALID_CREDENTIALS);
       }
 
       // 6. 이메일 인증 확인
@@ -311,11 +316,11 @@ export class LoginUseCase {
     // 최대 시도 횟수 초과
     if (attempts.count >= this.MAX_LOGIN_ATTEMPTS) {
       const remainingTime = Math.ceil((this.LOCKOUT_DURATION - timeSinceLastAttempt) / 1000 / 60);
-      const error = new TooManyRequestsError(
-        `너무 많은 로그인 시도가 있었습니다. ${remainingTime}분 후에 다시 시도해주세요.`
+      throw new TooManyRequestsError(
+        `너무 많은 로그인 시도가 있었습니다. ${remainingTime}분 후에 다시 시도해주세요.`,
+        undefined,
+        MESSAGE_CODES.SECURITY.TOO_MANY_ATTEMPTS
       );
-      error.messageCode = MESSAGE_CODES.SECURITY.TOO_MANY_ATTEMPTS;
-      throw error;
     }
   }
 
@@ -363,11 +368,11 @@ export class LoginUseCase {
     if (attempts.count >= 3) {
       const remainingAttempts = this.MAX_LOGIN_ATTEMPTS - attempts.count;
       if (remainingAttempts > 0) {
-        const error = new UnauthorizedError(
-          `로그인에 실패했습니다. ${remainingAttempts}번의 시도가 남았습니다. 5회 실패 시 15분간 로그인이 제한됩니다.`
+        throw new UnauthorizedError(
+          `로그인에 실패했습니다. ${remainingAttempts}번의 시도가 남았습니다. 5회 실패 시 15분간 로그인이 제한됩니다.`,
+          undefined,
+          MESSAGE_CODES.SECURITY.TOO_MANY_ATTEMPTS
         );
-        error.messageCode = MESSAGE_CODES.SECURITY.TOO_MANY_ATTEMPTS;
-        throw error;
       }
     }
   }

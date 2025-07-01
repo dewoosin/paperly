@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
+import '../services/error_translation_service.dart';
 import '../models/user.dart';
 
 class AuthProvider with ChangeNotifier {
@@ -93,7 +94,7 @@ class AuthProvider with ChangeNotifier {
       return true;
     } catch (e) {
       print('❌ AuthProvider: 로그인 실패 - $e');
-      _error = '로그인 실패: $e';
+      _error = ErrorTranslationService.translateFromError(e);
       _isLoading = false;
       notifyListeners();
       return false;
@@ -122,8 +123,13 @@ class AuthProvider with ChangeNotifier {
         birthDate: birthDate,
       );
       
-      _token = response['accessToken'] ?? response['access_token'];
-      _user = User.fromJson(response['user'] ?? response);
+      // 백엔드 응답 형식: { "success": true, "data": { "user": {...}, "tokens": {...} } }
+      final data = response['data'] ?? response;
+      final tokens = data['tokens'] ?? {};
+      final userData = data['user'] ?? {};
+      
+      _token = tokens['accessToken'] ?? response['accessToken'] ?? response['access_token'];
+      _user = User.fromJson(userData);
       
       // 토큰 저장
       if (_token != null) {
@@ -136,7 +142,7 @@ class AuthProvider with ChangeNotifier {
       
       return true;
     } catch (e) {
-      _error = '회원가입 실패: $e';
+      _error = ErrorTranslationService.translateFromError(e);
       _isLoading = false;
       notifyListeners();
       return false;
@@ -222,5 +228,15 @@ class AuthProvider with ChangeNotifier {
   void clearError() {
     _error = null;
     notifyListeners();
+  }
+
+  Future<Map<String, dynamic>?> checkUsernameAvailability(String username) async {
+    try {
+      final result = await _apiService.checkUsername(username);
+      return result;
+    } catch (e) {
+      print('Username check failed: $e');
+      return null;
+    }
   }
 }

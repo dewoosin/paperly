@@ -2,6 +2,7 @@
 
 import { Token, DeviceInfo } from '../value-objects/auth.value-objects';
 import { UserId } from '../value-objects/user-id.value-object';
+import { Email } from '../value-objects/email.vo';
 
 /**
  * Refresh Token 리포지토리 인터페이스
@@ -45,10 +46,6 @@ export interface IRefreshTokenRepository {
 // =============================================================================
 
 // apps/backend/src/domain/repositories/email-verification.repository.ts
-
-import { Token } from '../value-objects/auth.value-objects';
-import { UserId } from '../value-objects/user-id.value-object';
-import { Email } from '../value-objects/auth.value-objects';
 
 /**
  * 이메일 인증 리포지토리 인터페이스
@@ -97,8 +94,6 @@ export interface IEmailVerificationRepository {
 // =============================================================================
 
 // apps/backend/src/domain/repositories/login-attempt.repository.ts
-
-import { Email } from '../value-objects/auth.value-objects';
 
 /**
  * 로그인 시도 기록 정보

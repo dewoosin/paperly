@@ -4,11 +4,11 @@ import { injectable, inject } from 'tsyringe';
 import { Email } from '../../domain/value-objects/email.vo';
 import { Password } from '../../domain/value-objects/password.vo';
 import { IUserRepository } from '../../infrastructure/repositories/user.repository';
-import { AdminRoleRepository, UserWithRole } from '../../infrastructure/repositories/admin-role.repository';
+import { AdminRoleRepository } from '../../infrastructure/repositories/admin-role.repository';
 import { JwtService } from '../../infrastructure/auth/jwt.service';
 import { Logger } from '../../infrastructure/logging/Logger';
 import { UnauthorizedError, ForbiddenError } from '../../shared/errors';
-import { SecurityMonitor } from '../../infrastructure/security/monitoring/security-monitor';
+import { SecurityMonitor, SecurityEventType, SecuritySeverity, SecurityAction } from '../../infrastructure/security/monitoring/security-monitor';
 
 /**
  * 관리자 인증 서비스
@@ -77,7 +77,6 @@ export class AdminAuthService {
     try {
       // 입력값 검증
       const email = Email.create(request.email);
-      const password = Password.fromPlainText(request.password);
 
       // 사용자 조회
       const user = await this.userRepository.findByEmail(email);
@@ -89,8 +88,8 @@ export class AdminAuthService {
         
         // 보안 이벤트 기록
         this.securityMonitor.recordSecurityEvent({
-          type: 'MULTIPLE_FAILED_LOGINS',
-          severity: 'medium',
+          type: SecurityEventType.MULTIPLE_FAILED_LOGINS,
+          severity: SecuritySeverity.MEDIUM,
           source: {
             ip: request.ip || 'unknown',
             userAgent: request.userAgent,
@@ -104,6 +103,11 @@ export class AdminAuthService {
             description: '존재하지 않는 이메일로 관리자 로그인 시도',
             riskScore: 5,
             threats: ['ADMIN_BRUTE_FORCE']
+          },
+          response: {
+            action: SecurityAction.LOGGED,
+            blocked: false,
+            timestamp: new Date()
           }
         });
 
@@ -111,7 +115,7 @@ export class AdminAuthService {
       }
 
       // 비밀번호 확인
-      const isPasswordValid = await user.password.compare(password.getHashedValue());
+      const isPasswordValid = await user.password.verify(request.password);
       if (!isPasswordValid) {
         this.logger.warn('관리자 로그인 실패 - 비밀번호 불일치', { 
           userId: user.id.getValue(),
@@ -121,8 +125,8 @@ export class AdminAuthService {
 
         // 보안 이벤트 기록
         this.securityMonitor.recordSecurityEvent({
-          type: 'MULTIPLE_FAILED_LOGINS',
-          severity: 'medium',
+          type: SecurityEventType.MULTIPLE_FAILED_LOGINS,
+          severity: SecuritySeverity.MEDIUM,
           source: {
             ip: request.ip || 'unknown',
             userAgent: request.userAgent,
@@ -137,6 +141,11 @@ export class AdminAuthService {
             description: '잘못된 비밀번호로 관리자 로그인 시도',
             riskScore: 7,
             threats: ['ADMIN_BRUTE_FORCE']
+          },
+          response: {
+            action: SecurityAction.LOGGED,
+            blocked: false,
+            timestamp: new Date()
           }
         });
 
@@ -175,8 +184,8 @@ export class AdminAuthService {
 
         // 보안 이벤트 기록
         this.securityMonitor.recordSecurityEvent({
-          type: 'PRIVILEGE_ESCALATION',
-          severity: 'high',
+          type: SecurityEventType.PRIVILEGE_ESCALATION,
+          severity: SecuritySeverity.HIGH,
           source: {
             ip: request.ip || 'unknown',
             userAgent: request.userAgent,
@@ -192,6 +201,11 @@ export class AdminAuthService {
             riskScore: 8,
             threats: ['PRIVILEGE_ESCALATION'],
             context: { userRole: userRole.role }
+          },
+          response: {
+            action: SecurityAction.LOGGED,
+            blocked: false,
+            timestamp: new Date()
           }
         });
 
@@ -216,6 +230,8 @@ export class AdminAuthService {
       const tokens = JwtService.generateTokenPair(
         user.id.getValue(),
         user.email.getValue(),
+        user.userType,
+        user.userCode || 'AD0001',
         userRole.role,
         userRole.permissions
       );
@@ -288,6 +304,8 @@ export class AdminAuthService {
       const tokens = JwtService.generateTokenPair(
         userRole.userId,
         userRole.email,
+        'admin', // userType
+        'AD0001', // userCode
         userRole.role,
         userRole.permissions
       );

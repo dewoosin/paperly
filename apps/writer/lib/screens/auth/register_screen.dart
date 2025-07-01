@@ -17,7 +17,9 @@
 /// - 로딩 상태 시각적 피드백
 
 import 'package:flutter/material.dart';     // Flutter UI 컴포넌트
+import 'package:flutter/services.dart';      // 입력 필터링을 위해 추가
 import 'package:provider/provider.dart';     // 상태 관리
+import 'dart:async';                          // Timer 사용을 위해 추가
 import '../../providers/auth_provider.dart';  // 인증 상태 관리
 import '../../theme/writer_theme.dart';       // 작가 앱 테마
 import '../../widgets/writer_app_bar.dart';   // 작가 앱 공통 앱바
@@ -58,6 +60,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _isLoading = false;                // 회원가입 진행 중 여부
   bool _agreeToTerms = false;             // 이용약관 동의 여부
   DateTime? _selectedBirthDate;           // 선택된 생년월일
+  
+  // 사용자명 중복 확인 관련 상태
+  bool _isCheckingUsername = false;       // 사용자명 중복 확인 중 여부
+  String? _usernameCheckMessage;          // 사용자명 중복 확인 메시지
+  bool? _isUsernameAvailable;             // 사용자명 사용 가능 여부
+  Timer? _usernameCheckTimer;             // 사용자명 중복 확인 디바운스 타이머
+  
+  // 필드별 에러 메시지
+  String? _usernameError;
+  String? _emailError;
+  String? _passwordError;
+  String? _nameError;
 
   /// 위젯 소멸 시 리소스 정리
   /// 
@@ -69,6 +83,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _usernameCheckTimer?.cancel();
     super.dispose();
   }
 
@@ -121,29 +136,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // 사용자명(아이디) 입력 필드
+                        // 사용자명(아이디) 입력 필드 (실시간 중복 확인 포함)
                         // 로그인에 사용될 고유 아이디를 입력받습니다.
-                        _buildInputField(
-                          controller: _usernameController,
-                          label: '아이디(사용자명)',
-                          hint: '영문, 숫자, 언더스코어(_)만 사용 가능',
-                          icon: Icons.alternate_email,
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return '아이디를 입력해주세요';
-                            }
-                            if (value.length < 3) {
-                              return '아이디는 3자 이상이어야 합니다';
-                            }
-                            if (value.length > 20) {
-                              return '아이디는 20자 이하여야 합니다';
-                            }
-                            if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(value)) {
-                              return '영문, 숫자, 언더스코어(_)만 사용 가능합니다';
-                            }
-                            return null;
-                          },
-                        ),
+                        _buildUsernameField(),
                         
                         const SizedBox(height: 20),
                         
@@ -154,15 +149,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           label: '실명',
                           hint: '본명을 입력해주세요',
                           icon: Icons.person_outline,
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return '실명을 입력해주세요';
-                            }
-                            if (value.trim().length < 2) {
-                              return '실명은 2자 이상이어야 합니다';
-                            }
-                            return null;
-                          },
+                          validator: _validateName,
                         ),
                         
                         const SizedBox(height: 20),
@@ -175,17 +162,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           hint: 'example@email.com',
                           icon: Icons.email_outlined,
                           keyboardType: TextInputType.emailAddress, // 이메일 키보드 표시
-                          validator: (value) {
-                            // 클라이언트 단순 검증: 빈 값과 @ 포함 여부만 체크
-                            // 정확한 이메일 형식 검증은 서버에서 수행
-                            if (value == null || value.trim().isEmpty) {
-                              return '이메일을 입력해주세요';
-                            }
-                            if (!value.contains('@')) {
-                              return '이메일 형식이 아닙니다';
-                            }
-                            return null;
-                          },
+                          validator: _validateEmail,
                         ),
                         
                         const SizedBox(height: 20),
@@ -201,7 +178,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         _buildInputField(
                           controller: _passwordController,
                           label: '비밀번호',
-                          hint: '비밀번호를 입력하세요',
+                          hint: '영문, 숫자, 특수문자 중 2가지 이상 포함',
                           icon: Icons.lock_outline,
                           isPassword: true,                    // 비밀번호 필드임을 표시
                           isPasswordVisible: _isPasswordVisible, // 비밀번호 표시 상태
@@ -210,17 +187,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               _isPasswordVisible = !_isPasswordVisible;
                             });
                           },
-                          validator: (value) {
-                            // 클라이언트 단순 검증: 빈 값과 최소 길이만 체크
-                            // 복잡한 비밀번호 규칙 검증은 서버에서 수행
-                            if (value == null || value.isEmpty) {
-                              return '비밀번호를 입력해주세요';
-                            }
-                            if (value.length < 6) {
-                              return '비밀번호가 너무 짧습니다';
-                            }
-                            return null;
-                          },
+                          validator: _validatePassword,
                         ),
                         
                         const SizedBox(height: 20),
@@ -288,36 +255,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         const SizedBox(height: 32),
                         
                         // 회원가입 실행 버튼
-                        // 로딩 중이거나 약관 미동의, 생년월일 미선택 시 비활성화
-                        ElevatedButton(
-                          onPressed: (_isLoading || !_agreeToTerms || _selectedBirthDate == null) ? null : _register,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: WriterTheme.primaryBlue,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            disabledBackgroundColor: WriterTheme.neutralGray300,
-                            elevation: 0,                    // 플랫 디자인
-                          ),
-                          child: _isLoading
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation(Colors.white),
-                                  ),
-                                )
-                              : Text(
-                                  '작가 등록하기',
-                                  style: WriterTheme.subtitleStyle.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                        ),
+                        // 로딩 중이거나 약관 미동의, 생년월일 미선택, 사용자명 중복 시 비활성화
+                        _buildRegisterButton(),
                       ],
                     ),
                   ),
@@ -457,21 +396,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
   /// 1. 클라이언트 측 폼 검증
   /// 2. AuthProvider를 통한 서버 API 호출
   /// 3. 성공 시: 프로필 설정 or 홈 화면으로 이동
-  /// 4. 실패 시: 에러 메시지 표시
+  /// 4. 실패 시: 구체적인 에러 메시지 표시
   Future<void> _register() async {
-    // 1단계: 클라이언트 측 폼 유효성 검사
+    // 1단계: 폼 유효성 및 필수 조건 검사
     if (!_formKey.currentState!.validate()) {
+      _showErrorMessage('입력 정보를 다시 확인해주세요');
       return;
     }
     
-    // 생년월일 필수 체크 (서버에서 필수로 요구함)
     if (_selectedBirthDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('생년월일을 선택해주세요'),
-          backgroundColor: WriterTheme.accentRed,
-        ),
-      );
+      _showErrorMessage('생년월일을 선택해주세요');
+      return;
+    }
+    
+    if (!_agreeToTerms) {
+      _showErrorMessage('이용약관에 동의해주세요');
+      return;
+    }
+    
+    if (_isUsernameAvailable != true) {
+      _showErrorMessage('사용자명 중복 확인을 완료해주세요');
       return;
     }
 
@@ -510,23 +454,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
           Navigator.pushReplacementNamed(context, '/home');
         }
       } else if (mounted) {
-        // 5단계: 회원가입 실패 처리
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(authProvider.error ?? '회원가입에 실패했습니다.'),
-            backgroundColor: WriterTheme.accentRed,
-          ),
-        );
+        // 5단계: 회원가입 실패 처리 - 구체적인 에러 메시지 표시
+        final errorMessage = authProvider.error ?? '회원가입에 실패했습니다.';
+        _showErrorMessage(_getSpecificErrorMessage(errorMessage));
       }
     } catch (e) {
       // 6단계: 예외 상황 처리 (네트워크 오류 등)
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('오류가 발생했습니다: $e'),
-            backgroundColor: WriterTheme.accentRed,
-          ),
-        );
+        _showErrorMessage('네트워크 오류가 발생했습니다. 다시 시도해주세요.');
       }
     } finally {
       // 7단계: 로딩 상태 종료 (성공/실패 무관)
@@ -535,6 +470,45 @@ class _RegisterScreenState extends State<RegisterScreen> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  /// 구체적인 에러 메시지 반환
+  String _getSpecificErrorMessage(String originalError) {
+    if (originalError.contains('이메일')) {
+      if (originalError.contains('이미')) {
+        return '이미 사용 중인 이메일입니다. 다른 이메일을 사용해주세요.';
+      } else if (originalError.contains('형식')) {
+        return '올바른 이메일 형식을 입력해주세요.';
+      }
+    } else if (originalError.contains('비밀번호')) {
+      return '비밀번호는 8자 이상, 영문/숫자/특수문자 중 2가지 이상 포함해야 합니다.';
+    } else if (originalError.contains('아이디') || originalError.contains('사용자명')) {
+      return '이미 사용 중인 아이디입니다. 다른 아이디를 사용해주세요.';
+    } else if (originalError.contains('나이') || originalError.contains('14세')) {
+      return '14세 이상만 가입할 수 있습니다.';
+    } else if (originalError.contains('네트워크')) {
+      return '네트워크 연결을 확인하고 다시 시도해주세요.';
+    }
+    
+    return originalError.isEmpty ? '회원가입 중 오류가 발생했습니다.' : originalError;
+  }
+
+  /// 에러 메시지 표시 헬퍼 메서드
+  void _showErrorMessage(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: WriterTheme.accentRed,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          duration: const Duration(seconds: 4),
+        ),
+      );
     }
   }
 
@@ -631,6 +605,234 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+  /// 사용자명 입력 필드 (버튼 클릭 중복 확인)
+  Widget _buildUsernameField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '아이디(사용자명)',
+          style: WriterTheme.subtitleStyle.copyWith(
+            fontWeight: FontWeight.bold,
+            color: WriterTheme.neutralGray800,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: TextFormField(
+                controller: _usernameController,
+                validator: _validateUsername,
+                keyboardType: TextInputType.text,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9_]')),
+                ],
+                onChanged: (value) {
+                  // 입력이 변경되면 이전 확인 결과 초기화
+                  if (_isUsernameAvailable != null) {
+                    setState(() {
+                      _isUsernameAvailable = null;
+                      _usernameCheckMessage = null;
+                    });
+                  }
+                },
+                decoration: InputDecoration(
+                  hintText: '영문, 숫자, 언더스코어(_)만 사용',
+                  hintStyle: WriterTheme.bodyStyle.copyWith(
+                    color: WriterTheme.neutralGray500,
+                  ),
+                  prefixIcon: Icon(
+                    Icons.alternate_email,
+                    color: WriterTheme.neutralGray500,
+                    size: 20,
+                  ),
+                  suffixIcon: _isUsernameAvailable != null
+                      ? Icon(
+                          _isUsernameAvailable! ? Icons.check_circle : Icons.error,
+                          color: _isUsernameAvailable! 
+                              ? WriterTheme.accentGreen 
+                              : WriterTheme.accentRed,
+                          size: 20,
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: WriterTheme.neutralGray300),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: _isUsernameAvailable == false 
+                          ? WriterTheme.accentRed 
+                          : _isUsernameAvailable == true
+                              ? WriterTheme.accentGreen
+                              : WriterTheme.neutralGray300
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: _isUsernameAvailable == false 
+                          ? WriterTheme.accentRed 
+                          : WriterTheme.primaryBlue, 
+                      width: 2
+                    ),
+                  ),
+                  errorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: WriterTheme.accentRed),
+                  ),
+                  focusedErrorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: WriterTheme.accentRed, width: 2),
+                  ),
+                  filled: true,
+                  fillColor: WriterTheme.neutralGray50,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              height: 48,
+              child: ListenableBuilder(
+                listenable: _usernameController,
+                builder: (context, child) {
+                  final canCheck = !_isCheckingUsername && _usernameController.text.trim().isNotEmpty;
+                  return ElevatedButton(
+                    onPressed: canCheck ? _checkUsernameAvailability : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: WriterTheme.primaryBlue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: _isCheckingUsername
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Text('중복확인', style: TextStyle(fontSize: 12)),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+        if (_usernameCheckMessage != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              _usernameCheckMessage!,
+              style: WriterTheme.captionStyle.copyWith(
+                color: _isUsernameAvailable == true 
+                    ? WriterTheme.accentGreen 
+                    : WriterTheme.accentRed,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// 향상된 회원가입 버튼
+  Widget _buildRegisterButton() {
+    final bool canRegister = !_isLoading && 
+                            _agreeToTerms && 
+                            _selectedBirthDate != null &&
+                            _isUsernameAvailable == true;
+    
+    return Column(
+      children: [
+        if (_isLoading)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Column(
+              children: [
+                LinearProgressIndicator(
+                  backgroundColor: WriterTheme.neutralGray200,
+                  valueColor: AlwaysStoppedAnimation(WriterTheme.primaryBlue),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '계정을 생성하고 있습니다...',
+                  style: WriterTheme.captionStyle.copyWith(
+                    color: WriterTheme.neutralGray600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ElevatedButton(
+          onPressed: canRegister ? _register : null,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: WriterTheme.primaryBlue,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            disabledBackgroundColor: WriterTheme.neutralGray300,
+            elevation: 0,
+          ),
+          child: _isLoading
+              ? Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(
+                      height: 16,
+                      width: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation(Colors.white),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      '등록 중...',
+                      style: WriterTheme.subtitleStyle.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                )
+              : Text(
+                  '작가 등록하기',
+                  style: WriterTheme.subtitleStyle.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+        ),
+        if (!canRegister && !_isLoading)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              _selectedBirthDate == null 
+                  ? '생년월일을 선택해주세요'
+                  : !_agreeToTerms 
+                      ? '이용약관에 동의해주세요'
+                      : _isUsernameAvailable != true
+                          ? '사용자명 중복 확인을 완료해주세요'
+                          : '모든 필수 항목을 입력해주세요',
+              style: WriterTheme.captionStyle.copyWith(
+                color: WriterTheme.accentRed,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   /// 만 나이 계산 함수
   /// 
   /// 생년월일을 기준으로 만 나이를 계산합니다.
@@ -644,5 +846,174 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
     
     return age;
+  }
+
+  /// 사용자명 중복 확인 (버튼 클릭 시)
+  Future<void> _checkUsernameAvailability() async {
+    final username = _usernameController.text.trim();
+    
+    // 사용자명이 비어있거나 3자 미만이면 확인하지 않음
+    if (username.isEmpty || username.length < 3) {
+      setState(() {
+        _usernameCheckMessage = '아이디는 3자 이상 입력해주세요';
+        _isUsernameAvailable = false;
+      });
+      return;
+    }
+    
+    // 기본 형식 검증 먼저 수행
+    if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(username)) {
+      setState(() {
+        _usernameCheckMessage = '영문, 숫자, 언더스코어(_)만 사용 가능합니다';
+        _isUsernameAvailable = false;
+      });
+      return;
+    }
+    
+    setState(() {
+      _isCheckingUsername = true;
+      _usernameCheckMessage = null;
+    });
+    
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final result = await authProvider.checkUsernameAvailability(username);
+      
+      if (result != null && mounted) {
+        final data = result['data'] ?? result;
+        final available = data['available'] ?? false;
+        final message = result['message'] ?? data['message'] ?? 
+            (available ? '사용 가능한 아이디입니다' : '이미 사용 중인 아이디입니다');
+        
+        setState(() {
+          _isUsernameAvailable = available;
+          _usernameCheckMessage = message;
+          _isCheckingUsername = false;
+        });
+      } else {
+        if (mounted) {
+          setState(() {
+            _usernameCheckMessage = '중복 확인 중 오류가 발생했습니다. 다시 시도해주세요.';
+            _isUsernameAvailable = null;
+            _isCheckingUsername = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _usernameCheckMessage = '중복 확인 중 오류가 발생했습니다. 다시 시도해주세요.';
+          _isUsernameAvailable = null;
+          _isCheckingUsername = false;
+        });
+      }
+    }
+  }
+
+  /// 강화된 이메일 검증
+  String? _validateEmail(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return '이메일을 입력해주세요';
+    }
+    
+    // 더 강력한 이메일 정규식
+    final emailRegex = RegExp(
+      r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    );
+    
+    if (!emailRegex.hasMatch(value.trim())) {
+      return '올바른 이메일 형식을 입력해주세요';
+    }
+    
+    return null;
+  }
+
+  /// 강화된 비밀번호 검증
+  String? _validatePassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return '비밀번호를 입력해주세요';
+    }
+    
+    if (value.length < 8) {
+      return '비밀번호는 최소 8자 이상이어야 합니다';
+    }
+    
+    if (value.length > 128) {
+      return '비밀번호가 너무 깁니다 (최대 128자)';
+    }
+    
+    // 영문, 숫자, 특수문자 중 2가지 이상 포함 확인
+    bool hasLetter = RegExp(r'[a-zA-Z]').hasMatch(value);
+    bool hasNumber = RegExp(r'[0-9]').hasMatch(value);
+    bool hasSpecial = RegExp(r'[!@#$%^&*(),.?\":{}|<>]').hasMatch(value);
+    
+    int complexity = 0;
+    if (hasLetter) complexity++;
+    if (hasNumber) complexity++;
+    if (hasSpecial) complexity++;
+    
+    if (complexity < 2) {
+      return '영문, 숫자, 특수문자 중 2가지 이상 포함해야 합니다';
+    }
+    
+    return null;
+  }
+
+  /// 강화된 사용자명 검증
+  String? _validateUsername(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return '아이디를 입력해주세요';
+    }
+    
+    final trimmed = value.trim();
+    
+    if (trimmed.length < 3) {
+      return '아이디는 3자 이상이어야 합니다';
+    }
+    
+    if (trimmed.length > 20) {
+      return '아이디는 20자 이하여야 합니다';
+    }
+    
+    if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(trimmed)) {
+      return '영문, 숫자, 언더스코어(_)만 사용 가능합니다';
+    }
+    
+    // 연속된 언더스코어 금지
+    if (trimmed.contains('__')) {
+      return '연속된 언더스코어는 사용할 수 없습니다';
+    }
+    
+    // 처음이나 마지막에 언더스코어 금지
+    if (trimmed.startsWith('_') || trimmed.endsWith('_')) {
+      return '아이디는 언더스코어로 시작하거나 끝날 수 없습니다';
+    }
+    
+    // 예약어 확인
+    final reserved = ['admin', 'root', 'system', 'paperly', 'writer', 'author'];
+    if (reserved.contains(trimmed.toLowerCase())) {
+      return '사용할 수 없는 아이디입니다';
+    }
+    
+    return null;
+  }
+
+  /// 이름 검증
+  String? _validateName(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return '실명을 입력해주세요';
+    }
+    
+    final trimmed = value.trim();
+    
+    if (trimmed.length < 2) {
+      return '실명은 2자 이상이어야 합니다';
+    }
+    
+    if (trimmed.length > 50) {
+      return '실명이 너무 깁니다 (최대 50자)';
+    }
+    
+    return null;
   }
 }

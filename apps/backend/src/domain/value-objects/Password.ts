@@ -6,7 +6,7 @@
  */
 
 import bcrypt from 'bcrypt';
-import { ValidationError } from '../../shared/errors/BaseError';
+import { ValidationError } from '../../shared/errors/index';
 import { config } from '../../infrastructure/config/env.config';
 
 export class Password {

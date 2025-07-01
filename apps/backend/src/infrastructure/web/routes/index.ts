@@ -1,168 +1,47 @@
-// apps/backend/src/infrastructure/web/routes/index.ts
-
 import { Router } from 'express';
-import { container } from 'tsyringe';
 import { Logger } from '../../logging/Logger';
-import { AuthController } from '../controllers/auth.controller';
+import { strictRateLimiter, apiRateLimiter } from '../middleware/rate-limiter.middleware';
 
 const logger = new Logger('Routes');
 
-// Controller interface for type safety
-interface Controller {
-  router: Router;
-}
-
 export const apiRouter = Router();
 
-/**
- * API 버전 및 상태 정보
- */
+// API Root - General API Information
 apiRouter.get('/', (req, res) => {
   res.json({
     name: 'Paperly API',
     version: '1.0.0',
     status: 'running',
     timestamp: new Date().toISOString(),
+    endpoints: {
+      mobile: '/api/mobile/',
+      writer: '/api/writer/',
+      admin: '/api/admin/'
+    }
   });
 });
 
-/**
- * 실제 Auth 라우트 설정 (지연 로딩)
- */
-function setupAuthRoutes(): Router {
-  const authController = container.resolve(AuthController);
-  return authController.router;
-}
-
-// 실제 Auth 라우트 등록 (지연 로딩으로 수정)
-apiRouter.use('/auth', (req, res, next) => {
+// Client-Specific Route Modules
+function setupMobileRoutes(): Router {
   try {
-    const authRouter = setupAuthRoutes();
-    authRouter(req, res, next);
+    const { mobileRouter } = require('./mobile.routes');
+    return mobileRouter;
   } catch (error) {
-    logger.error('Auth route setup failed:', error);
-    next(error);
-  }
-});
-
-logger.info('API routes initialized with real Auth endpoints');
-
-// TODO: Day 4 - User routes  
-// apiRouter.use('/users', userRouter);
-
-// Article routes
-function setupArticleRoutes(): Router {
-  try {
-    const ArticleController = require('../controllers/article.controller').ArticleController;
-    const articleController = container.resolve(ArticleController) as Controller;
-    return articleController.router;
-  } catch (error) {
-    logger.error('Article controller setup failed:', error);
+    logger.error('Mobile route setup failed:', error);
     throw error;
   }
 }
 
-apiRouter.use('/articles', (req, res, next) => {
-  try {
-    const articleRouter = setupArticleRoutes();
-    articleRouter(req, res, next);
-  } catch (error) {
-    logger.error('Article route setup failed:', error);
-    next(error);
-  }
-});
-
-// Writer routes
 function setupWriterRoutes(): Router {
   try {
-    const { WriterController } = require('../controllers/writer.controller');
-    const writerController = container.resolve(WriterController) as Controller;
-    return writerController.router;
-  } catch (error) {
-    logger.error('Writer controller setup failed:', error);
-    throw error;
-  }
-}
-
-apiRouter.use('/writers', (req, res, next) => {
-  try {
-    const writerRouter = setupWriterRoutes();
-    writerRouter(req, res, next);
+    const { writerRouter } = require('./writer.routes');
+    return writerRouter;
   } catch (error) {
     logger.error('Writer route setup failed:', error);
-    next(error);
-  }
-});
-
-// Category routes
-function setupCategoryRoutes(): Router {
-  try {
-    const { CategoryController } = require('../controllers/category.controller');
-    const categoryController = container.resolve(CategoryController) as Controller;
-    return categoryController.router;
-  } catch (error) {
-    logger.error('Category controller setup failed:', error);
     throw error;
   }
 }
 
-apiRouter.use('/categories', (req, res, next) => {
-  try {
-    const categoryRouter = setupCategoryRoutes();
-    categoryRouter(req, res, next);
-  } catch (error) {
-    logger.error('Category route setup failed:', error);
-    next(error);
-  }
-});
-
-// Onboarding routes
-function setupOnboardingRoutes(): Router {
-  try {
-    const { OnboardingController } = require('../controllers/onboarding.controller');
-    const onboardingController = container.resolve(OnboardingController) as Controller;
-    return onboardingController.router;
-  } catch (error) {
-    logger.error('Onboarding controller setup failed:', error);
-    throw error;
-  }
-}
-
-apiRouter.use('/onboarding', (req, res, next) => {
-  try {
-    const onboardingRouter = setupOnboardingRoutes();
-    onboardingRouter(req, res, next);
-  } catch (error) {
-    logger.error('Onboarding route setup failed:', error);
-    next(error);
-  }
-});
-
-// Recommendation routes
-function setupRecommendationRoutes(): Router {
-  try {
-    const { RecommendationController } = require('../controllers/recommendation.controller');
-    const recommendationController = container.resolve(RecommendationController) as Controller;
-    return recommendationController.router;
-  } catch (error) {
-    logger.error('Recommendation controller setup failed:', error);
-    throw error;
-  }
-}
-
-apiRouter.use('/recommendations', (req, res, next) => {
-  try {
-    const recommendationRouter = setupRecommendationRoutes();
-    recommendationRouter(req, res, next);
-  } catch (error) {
-    logger.error('Recommendation route setup failed:', error);
-    next(error);
-  }
-});
-
-logger.info('All API routes initialized: Auth, Articles, Writers, Categories, Onboarding, Recommendations');
-
-// Admin routes setup (관리자 라우트 설정)
 function setupAdminRoutes(): Router {
   try {
     const { adminRouter } = require('./admin.routes');
@@ -173,7 +52,28 @@ function setupAdminRoutes(): Router {
   }
 }
 
-apiRouter.use('/admin', (req, res, next) => {
+// Register client-specific routes with lazy loading and rate limiting
+apiRouter.use('/mobile', apiRateLimiter, (req, res, next) => {
+  try {
+    const mobileRoutes = setupMobileRoutes();
+    mobileRoutes(req, res, next);
+  } catch (error) {
+    logger.error('Mobile route setup failed:', error);
+    next(error);
+  }
+});
+
+apiRouter.use('/writer', apiRateLimiter, (req, res, next) => {
+  try {
+    const writerRoutes = setupWriterRoutes();
+    writerRoutes(req, res, next);
+  } catch (error) {
+    logger.error('Writer route setup failed:', error);
+    next(error);
+  }
+});
+
+apiRouter.use('/admin', apiRateLimiter, (req, res, next) => {
   try {
     const adminRoutes = setupAdminRoutes();
     adminRoutes(req, res, next);
@@ -183,4 +83,147 @@ apiRouter.use('/admin', (req, res, next) => {
   }
 });
 
-logger.info('Admin routes initialized');
+// Backward compatibility routes (deprecated - will be removed in future versions)
+// These maintain the old endpoints for gradual migration
+const setupLegacyRoutes = () => {
+  logger.warn('Loading legacy routes for backward compatibility - these will be deprecated');
+  
+  // Legacy auth routes
+  function setupAuthRoutes(): Router {
+    try {
+      const { container } = require('tsyringe');
+      const { AuthController } = require('../controllers/auth.controller');
+      const authController = container.resolve(AuthController);
+      return authController.router;
+    } catch (error) {
+      logger.error('Legacy auth controller setup failed:', error);
+      throw error;
+    }
+  }
+
+  apiRouter.use('/auth', strictRateLimiter, (req, res, next) => {
+    logger.warn('Legacy /auth endpoint used - please migrate to /mobile/auth or /writer/auth', {
+      ip: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+    try {
+      const authRouter = setupAuthRoutes();
+      authRouter(req, res, next);
+    } catch (error) {
+      logger.error('Legacy auth route setup failed:', error);
+      next(error);
+    }
+  });
+
+  // Legacy article routes
+  function setupArticleRoutes(): Router {
+    try {
+      const { container } = require('tsyringe');
+      const ArticleController = require('../controllers/article.controller').ArticleController;
+      const articleController = container.resolve(ArticleController);
+      return articleController.router;
+    } catch (error) {
+      logger.error('Legacy article controller setup failed:', error);
+      throw error;
+    }
+  }
+
+  apiRouter.use('/articles', apiRateLimiter, (req, res, next) => {
+    logger.warn('Legacy /articles endpoint used - please migrate to /mobile/articles', {
+      ip: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+    try {
+      const articleRouter = setupArticleRoutes();
+      articleRouter(req, res, next);
+    } catch (error) {
+      logger.error('Legacy article route setup failed:', error);
+      next(error);
+    }
+  });
+
+  // Legacy category routes
+  function setupCategoryRoutes(): Router {
+    try {
+      const { container } = require('tsyringe');
+      const { CategoryController } = require('../controllers/category.controller');
+      const categoryController = container.resolve(CategoryController);
+      return categoryController.router;
+    } catch (error) {
+      logger.error('Legacy category controller setup failed:', error);
+      throw error;
+    }
+  }
+
+  apiRouter.use('/categories', apiRateLimiter, (req, res, next) => {
+    logger.warn('Legacy /categories endpoint used - please migrate to /mobile/categories', {
+      ip: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+    try {
+      const categoryRouter = setupCategoryRoutes();
+      categoryRouter(req, res, next);
+    } catch (error) {
+      logger.error('Legacy category route setup failed:', error);
+      next(error);
+    }
+  });
+
+  // Other legacy routes...
+  function setupRecommendationRoutes(): Router {
+    try {
+      const { container } = require('tsyringe');
+      const { RecommendationController } = require('../controllers/recommendation.controller');
+      const recommendationController = container.resolve(RecommendationController);
+      return recommendationController.router;
+    } catch (error) {
+      logger.error('Legacy recommendation controller setup failed:', error);
+      throw error;
+    }
+  }
+
+  apiRouter.use('/recommendations', apiRateLimiter, (req, res, next) => {
+    logger.warn('Legacy /recommendations endpoint used - please migrate to /mobile/recommendations', {
+      ip: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+    try {
+      const recommendationRouter = setupRecommendationRoutes();
+      recommendationRouter(req, res, next);
+    } catch (error) {
+      logger.error('Legacy recommendation route setup failed:', error);
+      next(error);
+    }
+  });
+
+  function setupOnboardingRoutes(): Router {
+    try {
+      const { container } = require('tsyringe');
+      const { OnboardingController } = require('../controllers/onboarding.controller');
+      const onboardingController = container.resolve(OnboardingController);
+      return onboardingController.router;
+    } catch (error) {
+      logger.error('Legacy onboarding controller setup failed:', error);
+      throw error;
+    }
+  }
+
+  apiRouter.use('/onboarding', apiRateLimiter, (req, res, next) => {
+    logger.warn('Legacy /onboarding endpoint used - please migrate to /mobile/onboarding', {
+      ip: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+    try {
+      const onboardingRouter = setupOnboardingRoutes();
+      onboardingRouter(req, res, next);
+    } catch (error) {
+      logger.error('Legacy onboarding route setup failed:', error);
+      next(error);
+    }
+  });
+};
+
+// Load legacy routes for backward compatibility
+setupLegacyRoutes();
+
+logger.info('API routes initialized with client-specific routing: Mobile, Writer, Admin + Legacy compatibility');

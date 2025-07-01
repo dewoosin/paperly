@@ -26,6 +26,8 @@ import '../../providers/auth_provider.dart';   // 인증 상태 관리
 import '../../widgets/muji_text_field.dart';   // 커스텀 텍스트 입력 필드
 import '../../widgets/muji_button.dart';       // 커스텀 버튼 위젯
 import '../../models/auth_models.dart';        // 인증 관련 데이터 모델
+import '../../services/device_info_service.dart'; // 디바이스 정보 서비스
+import '../../utils/error_handler.dart';       // 통합 에러 핸들링 시스템
 import 'register_screen.dart';                 // 회원가입 화면
 
 /// 로그인 화면 위젯
@@ -44,7 +46,7 @@ class LoginScreen extends StatefulWidget {
 /// SingleTickerProviderStateMixin:
 /// 하나의 애니메이션 컨트롤러를 사용할 때 효율적인 Ticker 제공
 class _LoginScreenState extends State<LoginScreen> 
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, ErrorHandlerMixin {
   
   // ============================================================================
   // 🎨 애니메이션 컨트롤러들
@@ -67,8 +69,6 @@ class _LoginScreenState extends State<LoginScreen>
   // ============================================================================
   
   bool _isPasswordVisible = false;  // 비밀번호 표시/숨김 상태
-  bool _isLoading = false;          // 로그인 요청 진행 중 여부
-  String? _errorMessage;            // 로그인 실패 시 표시할 에러 메시지
 
   /// 위젯 초기화
   /// 
@@ -130,17 +130,21 @@ class _LoginScreenState extends State<LoginScreen>
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
     
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+    // 에러 상태 초기화 및 로딩 시작
+    clearError();
+    toggleLoading(true);
     
     try {
       final authProvider = context.read<AuthProvider>();
+      
+      // 디바이스 정보 생성
+      final deviceInfo = await DeviceInfoService.createDeviceInfo();
+      
       await authProvider.login(
         LoginRequest(
           email: _emailController.text.trim(),
           password: _passwordController.text,
+          deviceInfo: deviceInfo,
         ),
       );
       
@@ -149,42 +153,34 @@ class _LoginScreenState extends State<LoginScreen>
         // AuthProvider 상태 업데이트 대기
         await Future.delayed(const Duration(milliseconds: 100));
         
-        // 성공 메시지 표시
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('환영합니다! ${authProvider.currentUser?.name ?? '사용자'}님'),
-            backgroundColor: MujiTheme.sage,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+        // 성공 메시지 표시 (통합 에러 핸들러 사용)
+        showSuccessMessage('환영합니다! ${authProvider.currentUser?.name ?? '사용자'}님');
         
         // 메인 화면으로 이동
         Navigator.of(context).pushReplacementNamed('/home');
       }
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
-      });
+      // 통합 에러 핸들링 사용
+      final errorState = convertExceptionToErrorState(
+        e,
+        retry: _handleLogin,
+        context: {
+          'action': 'login',
+          'email': _emailController.text.trim(),
+        },
+      );
+      
+      showError(
+        errorState.message!,
+        type: errorState.type,
+        retry: errorState.retry,
+        context: errorState.context,
+      );
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      toggleLoading(false);
     }
   }
 
-  /// 에러 메시지 설정
-  /// 
-  /// 로그인 실패 시 사용자에게 표시할 에러 메시지를 설정합니다.
-  /// setState를 호출하여 UI를 업데이트하고 에러 영역을 표시합니다.
-  /// 
-  /// 매개변수:
-  /// - message: 표시할 에러 메시지 문자열
-  void _showError(String message) {
-    setState(() {
-      _errorMessage = message;
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -291,10 +287,9 @@ class _LoginScreenState extends State<LoginScreen>
                     const SizedBox(height: 12),
                     
                     // 에러 메시지 표시
-                    if (_errorMessage != null) ...[
-                      _buildErrorMessage(),
-                      const SizedBox(height: 12),
-                    ],
+                    // 에러 메시지 (통합 에러 핸들링 사용)
+                    InlineErrorWidget(errorState: errorState),
+                    if (errorState.hasError) const SizedBox(height: 16),
                     
                     // 비밀번호 찾기
                     Align(
@@ -322,8 +317,8 @@ class _LoginScreenState extends State<LoginScreen>
                     // 로그인 버튼
                     MujiButton(
                       text: '로그인',
-                      onPressed: _isLoading ? null : _handleLogin,
-                      isLoading: _isLoading,
+                      onPressed: errorState.isLoading ? null : _handleLogin,
+                      isLoading: errorState.isLoading,
                       style: MujiButtonStyle.primary,
                     ),
                     
