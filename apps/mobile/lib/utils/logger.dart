@@ -1,50 +1,50 @@
 // lib/utils/logger.dart
 
-import 'package:logger/logger.dart';
+import 'package:logger/logger.dart' as logger;
 import 'package:flutter/foundation.dart';
 
 /// 앱 전역에서 사용할 로거 인스턴스
-final logger = _createLogger();
+final loggerInstance = _createLogger();
 
 /// 로거 생성 함수
 /// 
 /// 개발/프로덕션 환경에 따라 다른 로그 레벨과 출력 방식을 설정합니다.
-Logger _createLogger() {
-  return Logger(
+logger.Logger _createLogger() {
+  return logger.Logger(
     printer: _CustomPrinter(),
-    level: kDebugMode ? Level.debug : Level.warning,
-    filter: kDebugMode ? DevelopmentFilter() : ProductionFilter(),
+    level: kDebugMode ? logger.Level.debug : logger.Level.warning,
+    filter: kDebugMode ? logger.DevelopmentFilter() : logger.ProductionFilter(),
   );
 }
 
 /// 커스텀 로그 프린터
 /// 
 /// 무지 스타일에 맞는 깔끔한 로그 출력 형식을 제공합니다.
-class _CustomPrinter extends LogPrinter {
+class _CustomPrinter extends logger.LogPrinter {
   static const String _topBorder = '┌─────────────────────────────────────────────────────────';
   static const String _middleBorder = '├─────────────────────────────────────────────────────────';
   static const String _bottomBorder = '└─────────────────────────────────────────────────────────';
   
-  static final Map<Level, String> _levelEmojis = {
-    Level.trace: '🔍',
-    Level.debug: '🐛',
-    Level.info: 'ℹ️',
-    Level.warning: '⚠️',
-    Level.error: '❌',
-    Level.fatal: '💥',
+  static final Map<logger.Level, String> _levelEmojis = {
+    logger.Level.trace: '🔍',
+    logger.Level.debug: '🐛',
+    logger.Level.info: 'ℹ️',
+    logger.Level.warning: '⚠️',
+    logger.Level.error: '❌',
+    logger.Level.fatal: '💥',
   };
   
-  static final Map<Level, String> _levelLabels = {
-    Level.trace: 'TRACE',
-    Level.debug: 'DEBUG',
-    Level.info: 'INFO',
-    Level.warning: 'WARNING',
-    Level.error: 'ERROR',
-    Level.fatal: 'FATAL',
+  static final Map<logger.Level, String> _levelLabels = {
+    logger.Level.trace: 'TRACE',
+    logger.Level.debug: 'DEBUG',
+    logger.Level.info: 'INFO',
+    logger.Level.warning: 'WARNING',
+    logger.Level.error: 'ERROR',
+    logger.Level.fatal: 'FATAL',
   };
 
   @override
-  List<String> log(LogEvent event) {
+  List<String> log(logger.LogEvent event) {
     final emoji = _levelEmojis[event.level] ?? '';
     final label = _levelLabels[event.level] ?? '';
     final message = event.message;
@@ -90,10 +90,31 @@ class _CustomPrinter extends LogPrinter {
   }
 }
 
+/// 정적 Logger 클래스
+/// 
+/// 전역에서 쉽게 사용할 수 있는 정적 메서드들을 제공합니다.
+class Logger {
+  static void info(String message, [Map<String, dynamic>? data]) {
+    loggerInstance.i(message, error: data);
+  }
+  
+  static void error(String message, [Map<String, dynamic>? data]) {
+    loggerInstance.e(message, error: data);
+  }
+  
+  static void debug(String message, [Map<String, dynamic>? data]) {
+    loggerInstance.d(message, error: data);
+  }
+  
+  static void warning(String message, [Map<String, dynamic>? data]) {
+    loggerInstance.w(message, error: data);
+  }
+}
+
 /// 로그 확장 함수들
 /// 
 /// 특정 도메인이나 기능에 대한 로그를 쉽게 남길 수 있도록 합니다.
-extension LoggerExtensions on Logger {
+extension LoggerExtensions on logger.Logger {
   /// API 요청 로그
   void api(String method, String path, {dynamic data}) {
     d('🌐 API Request: $method $path', error: data);

@@ -36,6 +36,7 @@ part 'auth_models.g.dart';        // JSON 직렬화 메서드들
 /// - gender: 성별 정보 (선택사항)
 @freezed
 class User with _$User {
+  const User._();
   const factory User({
     required String id,              // 사용자 고유 ID
     required String email,           // 이메일 주소
@@ -50,13 +51,19 @@ class User with _$User {
   /// 서버에서 ID를 숫자형으로 보내는 경우가 있어 문자열로 변환합니다.
   /// 이는 다른 플랫폼과의 호환성을 위해 필요한 처리입니다.
   factory User.fromJson(Map<String, dynamic> json) {
-    // ID가 숫자로 올 수 있으므로 문자열로 변환
-    final Map<String, dynamic> modifiedJson = Map.from(json);
-    if (modifiedJson['id'] is int) {
-      modifiedJson['id'] = modifiedJson['id'].toString();
-    }
-    return _$UserFromJson(modifiedJson);
+    return User(
+      id: json['id']?.toString() ?? '',
+      email: json['email'] ?? '',
+      name: json['name'] ?? '',
+      emailVerified: json['emailVerified'] ?? false,
+      birthDate: json['birthDate'] != null ? DateTime.tryParse(json['birthDate']) : null,
+      gender: json['gender'] != null ? Gender.values.firstWhere(
+        (e) => e.toString().split('.').last == json['gender'],
+        orElse: () => Gender.unknown,
+      ) : null,
+    );
   }
+
 }
 
 /// 성별 선택 열거형
@@ -72,6 +79,8 @@ enum Gender {
   other,
   @JsonValue('prefer_not_to_say')  // 응답 안함
   preferNotToSay,
+  @JsonValue('unknown')            // 알 수 없음
+  unknown,
 }
 
 /// JWT 인증 토큰 모델
@@ -193,6 +202,7 @@ class LoginRequest with _$LoginRequest {
 /// - emailVerificationSent: 이메일 인증 메일 전송 여부 (선택사항)
 @freezed
 class AuthResponse with _$AuthResponse {
+  const AuthResponse._();
   const factory AuthResponse({
     required User user,              // 사용자 정보
     required AuthTokens tokens,      // 인증 토큰들
@@ -216,6 +226,11 @@ class AuthResponse with _$AuthResponse {
       modifiedJson['user'] = userJson;
     }
     
-    return _$AuthResponseFromJson(modifiedJson);
+    return AuthResponse(
+      user: User.fromJson(modifiedJson['user']),
+      tokens: AuthTokens.fromJson(modifiedJson['tokens']),
+      emailVerificationSent: modifiedJson['emailVerificationSent'],
+    );
   }
+
 }

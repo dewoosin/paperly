@@ -83,6 +83,15 @@ class MujiTheme {
   static const textTertiary = textLight;         // 3차 텍스트
   static const textDisabled = Color(0xFFBCBCBC); // 비활성화된 텍스트
   
+  // ============================================================================
+  // 🔄 ArticleDetailScreen 호환성을 위한 색상 별칭
+  // ============================================================================
+  
+  static const primaryColor = primary;           // 주요 색상
+  static const secondaryTextColor = textSecondary; // 보조 텍스트 색상
+  static const errorColor = error;               // 에러 색상
+  static const borderColor = border;             // 테두리 색상
+  
   // 간격 및 여백
   static const double spacingXxs = 4.0;
   static const double spacingXs = 8.0;

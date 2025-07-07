@@ -180,4 +180,11 @@ class ErrorTranslationService {
     
     return _errorMessages[code] ?? '작업이 완료되었습니다.';
   }
+
+  /// 에러를 사용자 친화적인 메시지로 번역 (별칭)
+  /// 
+  /// [error] 에러 객체
+  static String translateError(dynamic error) {
+    return translateFromError(error);
+  }
 }

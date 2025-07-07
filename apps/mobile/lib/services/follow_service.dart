@@ -32,6 +32,7 @@ class FollowService {
   
   final Dio _dio;                              // HTTP 클라이언트
   final Map<String, dynamic> _cache = {};      // 메모리 캐시
+  final logger = loggerInstance;               // 로거 인스턴스
   
   /// 생성자: Dio 인스턴스 주입
   /// 

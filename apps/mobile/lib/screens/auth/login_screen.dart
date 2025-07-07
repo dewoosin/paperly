@@ -229,11 +229,7 @@ class _LoginScreenState extends State<LoginScreen>
                     
                     const SizedBox(height: 40),
                     
-                    // 에러 메시지
-                    if (_errorMessage != null) ...[
-                      _buildErrorMessage(),
-                      const SizedBox(height: 16),
-                    ],
+                    // 에러 메시지 (ErrorHandlerMixin 사용)
                     
                     // 이메일 입력
                     MujiTextField(
@@ -381,38 +377,6 @@ class _LoginScreenState extends State<LoginScreen>
   /// - 빨간색 계열의 부드러운 배경
   /// - 경고 아이콘과 함께 메시지 표시
   /// - 모서리가 둥근 카드 형태
-  Widget _buildErrorMessage() {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300), // 300ms 등장 애니메이션
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.red.shade50,              // 연한 빨간색 배경
-        borderRadius: BorderRadius.circular(8), // 둥근 모서리
-        border: Border.all(
-          color: Colors.red.shade200,           // 빨간색 테두리
-          width: 0.5,                          // 연한 테두리 두께
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            CupertinoIcons.exclamationmark_circle, // iOS 스타일 경고 아이콘
-            size: 16,
-            color: Colors.red.shade700,             // 진한 빨간색
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              _errorMessage!,                       // 에러 메시지 텍스트
-              style: MujiTheme.mobileCaption.copyWith(
-                color: Colors.red.shade700,         // 진한 빨간색 글자
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildDivider() {
     return Row(

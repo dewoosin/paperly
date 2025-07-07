@@ -496,7 +496,7 @@ class __$$ArticleImplCopyWithImpl<$Res>
 
 /// @nodoc
 
-class _$ArticleImpl implements _Article {
+class _$ArticleImpl extends _Article {
   const _$ArticleImpl({
     required this.id,
     required this.title,
@@ -529,7 +529,7 @@ class _$ArticleImpl implements _Article {
     this.createdAt,
     this.updatedAt,
     this.deletedAt,
-  });
+  }) : super._();
 
   @override
   final String id;
@@ -714,7 +714,7 @@ class _$ArticleImpl implements _Article {
       __$$ArticleImplCopyWithImpl<_$ArticleImpl>(this, _$identity);
 }
 
-abstract class _Article implements Article {
+abstract class _Article extends Article {
   const factory _Article({
     required final String id,
     required final String title,
@@ -748,6 +748,7 @@ abstract class _Article implements Article {
     final DateTime? updatedAt,
     final DateTime? deletedAt,
   }) = _$ArticleImpl;
+  const _Article._() : super._();
 
   @override
   String get id;

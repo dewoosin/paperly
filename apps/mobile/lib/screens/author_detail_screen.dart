@@ -52,6 +52,9 @@ class _AuthorDetailScreenState extends State<AuthorDetailScreen>
   late AnimationController _fadeController;
   late AnimationController _scaleController;
   
+  // 로거 인스턴스
+  final logger = loggerInstance;
+  
   // 스크롤 관련 변수들
   final ScrollController _mainScrollController = ScrollController();
   double _scrollOffset = 0;

@@ -1,0 +1,507 @@
+/perly: AI 기반 개인화 학습 플랫폼
+
+## Claude Code 메모리를 위한 완전한 기술 문서
+
+-----
+
+## 1. 개요
+
+**Paperly**는 사용자의 관심사와 읽기 패턴을 분석하여 개인화된 일일 학습 콘텐츠를 제공하는 AI 기반 모바일 애플리케이션입니다. 이 혁신적인 플랫폼은 디지털 시대의 세 가지 중요한 과제를 해결합니다: 주의력 경제의 붕괴, 지식의 휘발성, 그리고 환경 지속가능성.
+
+### 핵심 비전
+
+AI 큐레이션과 미니멀리스트 디자인 원칙을 결합하여 인류의 지식 소비 방식을 변화시키고, 깊은 사고와 지식 보존을 촉진하는 지속가능한 학습 생태계를 만듭니다.
+
+### 주요 지표
+
+- **개발 일정**: 앱스토어 출시까지 40일 스프린트
+- **기술 스택**: Flutter + Node.js + PostgreSQL + OpenAI
+- **아키텍처**: 클린 아키텍처 + DDD + 마이크로서비스
+- **데이터베이스**: 플랫폼의 모든 측면을 다루는 33개 테이블
+
+-----
+
+## 2. 문제 정의
+
+### 2.1 디지털 중독 위기
+
+- 일일 평균 핸드폰 픽업 횟수: 96회
+- 주의 지속 시간: 47초 (2000년 대비 74% 감소)
+- 정보 기억률: 스크린 10% vs 종이 65%
+- 사회적 비용: 연간 42조원 생산성 손실
+
+### 2.2 지식 보존 과제
+
+- 디지털 콘텐츠 3일 후 기억률: 5%
+- 종이 매체 3일 후 기억률: 35%
+- 북마크 재방문율: 0.3%
+- 심층 학습 효과 심각하게 저하
+
+### 2.3 환경 영향
+
+- 스마트폰 연간 탄소 배출: 410kg CO₂
+- Paperly 시스템: 5kg CO₂ (98.8% 감소)
+- 지속가능한 지식 소비 모델
+
+-----
+
+## 3. 솔루션 아키텍처
+
+### 3.1 시스템 개요
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  Flutter 앱     │────▶│   백엔드 API    │────▶│   AI 서비스     │
+│  (iOS/Android)  │     │  (Node.js/TS)   │     │ (Python/OpenAI) │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+         │                       │                         │
+         ▼                       ▼                         ▼
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│ 로컬 저장소     │     │  PostgreSQL 15  │     │   Redis 캐시    │
+│ (SharedPrefs)   │     │  (33개 테이블)   │     │  (세션)         │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+```
+
+### 3.2 기술 스택
+
+#### 백엔드 (Node.js + TypeScript)
+
+```typescript
+// 클린 아키텍처 구조
+apps/backend/src/
+├── domain/               // 비즈니스 로직
+│   ├── entities/        // User, Article, Category
+│   ├── value-objects/   // Email, Password, UserId
+│   └── repositories/    // 인터페이스 정의
+├── application/         // 유스케이스
+│   ├── auth/           // 인증 흐름
+│   ├── content/        // 콘텐츠 관리
+│   └── recommendation/ // AI 추천
+├── infrastructure/     // 외부 시스템
+│   ├── database/      // PostgreSQL 구현
+│   ├── cache/         // Redis 구현
+│   ├── email/         // 이메일 서비스
+│   └── ai/            // OpenAI 통합
+└── presentation/      // API 계층
+    ├── controllers/   // 요청 핸들러
+    ├── routes/        // API 라우트
+    └── middleware/    // 인증, 검증
+```
+
+#### 모바일 (Flutter)
+
+```dart
+// Flutter 앱 구조
+apps/mobile/lib/
+├── core/
+│   ├── theme/          // 무지 스타일 디자인 시스템
+│   ├── utils/          // 헬퍼 및 유틸리티
+│   └── constants/      // 앱 상수
+├── data/
+│   ├── models/         // 데이터 모델
+│   ├── repositories/   // API 통신
+│   └── providers/      // 상태 관리
+├── domain/
+│   ├── entities/       // 비즈니스 엔티티
+│   └── usecases/       // 비즈니스 로직
+└── presentation/
+    ├── screens/        // UI 화면
+    ├── widgets/        // 재사용 가능한 컴포넌트
+    └── routes/         // 네비게이션
+```
+
+-----
+
+## 4. 데이터베이스 스키마 (33개 테이블)
+
+### 4.1 핵심 테이블 구조
+
+#### 시스템 관리 (3개 테이블)
+
+```sql
+-- 시스템 구성 및 설정
+system_configs, common_codes, system_messages
+```
+
+#### 사용자 관리 (4개 테이블)
+
+```sql
+-- 사용자 데이터 및 선호도
+users, user_profiles, user_settings, user_interests
+```
+
+#### 인증 및 보안 (5개 테이블)
+
+```sql
+-- 보안 및 인증
+refresh_tokens, email_verification_tokens, 
+password_reset_tokens, user_login_logs, user_sessions
+```
+
+#### 콘텐츠 관리 (6개 테이블)
+
+```sql
+-- 기사 및 콘텐츠 데이터
+articles, categories, tags, article_tags, 
+article_stats, article_keywords
+```
+
+#### 활동 추적 (6개 테이블)
+
+```sql
+-- 사용자 행동 및 상호작용
+reading_sessions, bookmarks, article_likes, 
+article_ratings, reading_highlights, reading_flows
+```
+
+#### AI 추천 (4개 테이블)
+
+```sql
+-- 개인화 및 추천
+user_preference_profiles, daily_recommendations, 
+recommendation_queue, demographic_preferences
+```
+
+#### 구독 및 결제 (3개 테이블)
+
+```sql
+-- 수익화
+subscription_plans, user_subscriptions, payment_transactions
+```
+
+#### 알림 (3개 테이블)
+
+```sql
+-- 커뮤니케이션
+notification_templates, user_notifications, email_logs
+```
+
+#### 분석 및 로깅 (3개 테이블)
+
+```sql
+-- 시스템 모니터링
+user_activity_logs, system_error_logs, daily_stats
+```
+
+-----
+
+## 5. 개발 가이드라인
+
+### 5.1 코드 구성 원칙
+
+#### 파일 분리 전략
+
+```
+// ❌ 나쁨: 한 파일에 모든 것
+// ✅ 좋음: 책임별로 분리
+
+// 파일: src/domain/entities/user.entity.ts
+export class User { ... }
+
+// 파일: src/domain/value-objects/email.vo.ts
+export class Email { ... }
+
+// 파일: src/application/auth/login.usecase.ts
+export class LoginUseCase { ... }
+```
+
+#### 포괄적인 문서화
+
+```typescript
+/**
+ * 사용자 인증 서비스
+ * 
+ * 이 서비스는 다음을 포함한 모든 인증 관련 작업을 처리합니다:
+ * - 이메일/비밀번호로 사용자 로그인
+ * - 토큰 생성 및 검증
+ * - 세션 관리
+ * 
+ * @module Authentication
+ * @requires TokenService, UserRepository, EmailService
+ */
+export class AuthService {
+  /**
+   * 사용자를 인증하고 JWT 토큰을 반환합니다
+   * 
+   * @param email - 사용자의 이메일 주소
+   * @param password - 사용자의 비밀번호 (해시됨)
+   * @returns 액세스 및 리프레시 토큰을 포함한 객체
+   * @throws 인증 실패 시 InvalidCredentialsError
+   */
+  async login(email: string, password: string): Promise<AuthTokens> {
+    // 구현
+  }
+}
+```
+
+### 5.2 개발 워크플로우
+
+#### 개발 전 체크리스트
+
+1. **데이터베이스 스키마 확인**
+- 기존 테이블과 관계 확인
+- 컬럼 이름과 타입 검증
+- 기존 패턴과의 일관성 보장
+1. **파일 요청 프로토콜**
+- 새 파일 생성 전 기존 관련 파일 요청
+- 현재 시스템 구현 분석
+- 확립된 패턴과의 일관성 유지
+1. **점진적 파일 전달**
+- 응답당 최대 3개 파일
+- 주석으로 파일 경로 포함
+- 진행 전 확인 대기
+
+### 5.3 품질 표준
+
+#### 엔터프라이즈급 요구사항
+
+- **에러 처리**: 특정 에러 타입을 사용한 포괄적인 try-catch 블록
+- **로깅**: Winston을 사용한 구조화된 로깅
+- **검증**: Zod 스키마를 사용한 입력 검증
+- **테스팅**: 비즈니스 로직용 단위 테스트, API용 통합 테스트
+- **보안**: JWT 인증, bcrypt 해싱, SQL 인젝션 방지
+
+-----
+
+## 6. 현재 개발 상태 (Day 1-3)
+
+### 6.1 완료된 작업
+
+#### Day 1: 프로젝트 기반 ✅
+
+- npm 워크스페이스를 사용한 모노레포 구조
+- Docker 서비스 (PostgreSQL, Redis, pgAdmin)
+- Flutter 개발 환경
+- GitHub 저장소 설정
+
+#### Day 2: 데이터베이스 설계 ✅
+
+- 완전한 33개 테이블 스키마 구현
+- 클린 아키텍처 백엔드 구조
+- 도메인 모델 및 값 객체
+- 초기 테스트 데이터 시딩
+
+#### Day 3: 인증 시스템 🔄
+
+- JWT 토큰 서비스 구현
+- 템플릿을 포함한 이메일 서비스
+- 사용자 등록 플로우 (진행 중)
+- 로그인 및 비밀번호 재설정 (대기 중)
+
+### 6.2 현재 이슈
+
+1. **서버 연결**
+- Flutter 앱이 백엔드에 연결할 수 없음
+- API 엔드포인트 미완성
+- CORS 구성 필요
+1. **인증 API**
+- 등록 엔드포인트 대기 중
+- 로그인 엔드포인트 대기 중
+- 이메일 인증 대기 중
+
+-----
+
+## 7. 40일 개발 로드맵
+
+### 1단계: 기반 (Day 1-5)
+
+- ✅ 프로젝트 설정
+- ✅ 데이터베이스 설계
+- 🔄 인증 시스템
+- ⏳ 콘텐츠 관리
+- ⏳ Flutter 기본 화면
+
+### 2단계: 핵심 기능 (Day 6-15)
+
+- 읽기 인터페이스
+- 사용자 프로필
+- 기본 추천
+- 통계 추적
+- OpenAI 통합
+
+### 3단계: 고급 기능 (Day 16-25)
+
+- AI 콘텐츠 생성
+- 개인화 알고리즘
+- 구독 시스템
+- 푸시 알림
+- 성능 최적화
+
+### 4단계: 마무리 및 출시 (Day 26-40)
+
+- 베타 테스트
+- 버그 수정
+- 앱스토어 준비
+- 마케팅 자료
+- 공식 출시
+
+-----
+
+## 8. API 설계 패턴
+
+### 8.1 RESTful 엔드포인트
+
+```typescript
+// 인증
+POST   /api/v1/auth/register
+POST   /api/v1/auth/login
+POST   /api/v1/auth/refresh
+POST   /api/v1/auth/logout
+
+// 콘텐츠
+GET    /api/v1/articles
+GET    /api/v1/articles/:id
+POST   /api/v1/articles/:id/like
+POST   /api/v1/articles/:id/bookmark
+
+// 추천
+GET    /api/v1/recommendations/daily
+POST   /api/v1/recommendations/feedback
+```
+
+### 8.2 응답 형식
+
+```json
+{
+  "success": true,
+  "data": {
+    // 응답 데이터
+  },
+  "meta": {
+    "timestamp": "2025-01-20T10:00:00Z",
+    "version": "1.0.0"
+  }
+}
+```
+
+-----
+
+## 9. AI 통합 전략
+
+### 9.1 콘텐츠 생성 파이프라인
+
+```python
+# AI 서비스 아키텍처
+class ContentGenerator:
+    def generate_article(self, user_profile: UserProfile) -> Article:
+        # 1. 사용자 선호도 분석
+        # 2. 적절한 주제 선택
+        # 3. GPT-4로 콘텐츠 생성
+        # 4. 무지 스타일 포맷팅 적용
+        # 5. 품질 검증
+        # 6. 포맷된 기사 반환
+```
+
+### 9.2 개인화 알고리즘
+
+- 유사 사용자를 위한 협업 필터링
+- 주제별 콘텐츠 기반 필터링
+- 피드백을 통한 강화 학습
+- 최적화를 위한 A/B 테스트
+
+-----
+
+## 10. 배포 및 운영
+
+### 10.1 인프라
+
+```yaml
+프로덕션:
+  - API 서버: Railway/Heroku
+  - 데이터베이스: PostgreSQL (Supabase)
+  - 캐시: Redis Cloud
+  - CDN: Cloudflare
+  - 모니터링: Sentry + LogRocket
+```
+
+### 10.2 CI/CD 파이프라인
+
+- 자동화된 테스트를 위한 GitHub Actions
+- QA를 위한 스테이징 환경
+- Blue-green 배포 전략
+- 자동 롤백 기능
+
+-----
+
+## 11. 주요 명령어 참조
+
+```bash
+# 개발 환경
+cd ~/workspace/paperly/paperly
+
+# Docker 서비스
+npm run dev:docker      # 모든 서비스 시작
+npm run docker:stop     # 서비스 중지
+npm run docker:logs     # 로그 보기
+npm run docker:reset    # 재설정 및 재시작
+
+# 백엔드 개발
+cd apps/backend
+npm run dev            # 개발 서버 시작
+npm run test           # 테스트 실행
+npm run build          # 프로덕션 빌드
+
+# Flutter 개발
+cd apps/mobile
+flutter pub get        # 의존성 설치
+flutter run           # 기기/에뮬레이터에서 실행
+flutter build ios     # iOS용 빌드
+flutter build apk     # Android용 빌드
+
+# 데이터베이스 접근
+docker exec -it paperly_postgres psql -U paperly_user -d paperly_db
+```
+
+-----
+
+## 12. Claude Code를 위한 중요 사항
+
+### 12.1 개발 철학
+
+- **먼저 물어보기**: 새 파일 생성 전 항상 기존 파일 요청
+- **깊이 분석하기**: 현재 구현 패턴 연구
+- **철저히 문서화하기**: 모든 함수에 명확한 문서 필요
+- **관심사 분리하기**: 유지보수성을 위해 파일당 하나의 클래스/함수
+- **모든 것을 테스트하기**: 구현과 함께 테스트 작성
+
+### 12.2 파일 전달 프로토콜
+
+1. 응답당 최대 3개 파일
+1. 헤더 주석으로 완전한 파일 경로 포함
+1. 계속하기 전 사용자 확인 대기
+1. 아키텍처 결정 설명
+
+### 12.3 데이터베이스 상호작용
+
+- 쿼리 작성 전 항상 스키마 확인
+- SQL 인젝션 방지를 위해 매개변수화된 쿼리 사용
+- 적절한 트랜잭션 처리 구현
+- 컨텍스트와 함께 모든 데이터베이스 오류 로깅
+
+-----
+
+## 13. 결론
+
+Paperly는 디지털 시대의 지식 소비에 대한 혁명적인 접근 방식을 나타냅니다. 최첨단 AI 기술과 사려 깊은 디자인 원칙, 지속가능한 관행을 결합함으로써, 우리는 단순한 앱이 아닌 사람들이 지식을 학습하고 보존하는 방식을 근본적으로 개선하는 플랫폼을 구축하고 있습니다.
+
+이 문서는 모든 개발 결정을 위한 권위 있는 참조 자료로 사용되며, 일관성과 품질을 보장하기 위해 구현 과정 전반에 걸쳐 참고되어야 합니다.
+
+**기억하세요**: 목표는 단순히 앱을 만드는 것이 아니라, 사용자의 삶에 실질적인 변화를 만드는 혁신적인 학습 경험을 창조하는 것입니다.
+
+-----
+
+*최종 업데이트: 2025년 1월*
+*버전: 1.0.0*
+*상태: 활발한 개발 중 (Day 3/40)***
+ * 토큰 갱신 유스케이스
+ */
+@injectable()
+export class RefreshTokenUseCase implements UseCase<RefreshTokenInput, RefreshTokenOutput> {
+  constructor(
+    @inject('TokenService') private tokenService: ITokenService,
+    @inject('RefreshTokenRepository') private refreshTokenRepository: IRefreshTokenRepository
+  ) {}
+
+  async execute(input: RefreshTokenInput): Promise<RefreshTokenOutput> {
+    const validatedInput = RefreshTokenInp
+

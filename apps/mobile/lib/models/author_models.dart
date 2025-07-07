@@ -14,7 +14,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 // Freezed에 의해 자동 생성되는 파일들
 part 'author_models.freezed.dart';
-part 'author_models.g.dart';
+// part 'author_models.g.dart'; // Temporarily disabled due to build issues
 
 /// 작가 정보 모델
 /// 
@@ -22,6 +22,7 @@ part 'author_models.g.dart';
 /// 홈 화면, 검색, 작가 상세 페이지 등에서 공통으로 사용됩니다.
 @freezed
 class Author with _$Author {
+  const Author._();
   const factory Author({
     required String id,              // 작가 고유 ID
     required String name,            // 작가 이름
@@ -52,13 +53,15 @@ class Author with _$Author {
 
   /// JSON에서 Author 객체로 변환
   factory Author.fromJson(Map<String, dynamic> json) {
-    // ID가 숫자로 올 수 있으므로 문자열로 변환
-    final Map<String, dynamic> modifiedJson = Map.from(json);
-    if (modifiedJson['id'] is int) {
-      modifiedJson['id'] = modifiedJson['id'].toString();
-    }
-    return _$AuthorFromJson(modifiedJson);
+    return Author(
+      id: json['id']?.toString() ?? '',
+      name: json['name'] ?? '',
+      displayName: json['displayName'] ?? json['name'] ?? '',
+      bio: json['bio'],
+      profileImageUrl: json['profileImageUrl'],
+    );
   }
+
 }
 
 /// 작가 통계 정보 모델

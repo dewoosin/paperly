@@ -169,7 +169,7 @@ class __$$UserImplCopyWithImpl<$Res>
 
 /// @nodoc
 
-class _$UserImpl implements _User {
+class _$UserImpl extends _User {
   const _$UserImpl({
     required this.id,
     required this.email,
@@ -177,7 +177,7 @@ class _$UserImpl implements _User {
     required this.emailVerified,
     this.birthDate,
     this.gender,
-  });
+  }) : super._();
 
   @override
   final String id;
@@ -237,7 +237,7 @@ class _$UserImpl implements _User {
       __$$UserImplCopyWithImpl<_$UserImpl>(this, _$identity);
 }
 
-abstract class _User implements User {
+abstract class _User extends User {
   const factory _User({
     required final String id,
     required final String email,
@@ -246,6 +246,7 @@ abstract class _User implements User {
     final DateTime? birthDate,
     final Gender? gender,
   }) = _$UserImpl;
+  const _User._() : super._();
 
   @override
   String get id; // 사용자 고유 ID
@@ -1320,12 +1321,12 @@ class __$$AuthResponseImplCopyWithImpl<$Res>
 
 /// @nodoc
 
-class _$AuthResponseImpl implements _AuthResponse {
+class _$AuthResponseImpl extends _AuthResponse {
   const _$AuthResponseImpl({
     required this.user,
     required this.tokens,
     this.emailVerificationSent,
-  });
+  }) : super._();
 
   @override
   final User user;
@@ -1365,12 +1366,13 @@ class _$AuthResponseImpl implements _AuthResponse {
       __$$AuthResponseImplCopyWithImpl<_$AuthResponseImpl>(this, _$identity);
 }
 
-abstract class _AuthResponse implements AuthResponse {
+abstract class _AuthResponse extends AuthResponse {
   const factory _AuthResponse({
     required final User user,
     required final AuthTokens tokens,
     final bool? emailVerificationSent,
   }) = _$AuthResponseImpl;
+  const _AuthResponse._() : super._();
 
   @override
   User get user; // 사용자 정보

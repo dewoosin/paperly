@@ -442,7 +442,7 @@ class __$$AuthorImplCopyWithImpl<$Res>
 
 /// @nodoc
 
-class _$AuthorImpl implements _Author {
+class _$AuthorImpl extends _Author {
   const _$AuthorImpl({
     required this.id,
     required this.name,
@@ -472,7 +472,8 @@ class _$AuthorImpl implements _Author {
   }) : _specialties = specialties,
        _previousPublications = previousPublications,
        _awards = awards,
-       _preferredTopics = preferredTopics;
+       _preferredTopics = preferredTopics,
+       super._();
 
   @override
   final String id;
@@ -691,7 +692,7 @@ class _$AuthorImpl implements _Author {
       __$$AuthorImplCopyWithImpl<_$AuthorImpl>(this, _$identity);
 }
 
-abstract class _Author implements Author {
+abstract class _Author extends Author {
   const factory _Author({
     required final String id,
     required final String name,
@@ -719,6 +720,7 @@ abstract class _Author implements Author {
     final DateTime? createdAt,
     final DateTime? updatedAt,
   }) = _$AuthorImpl;
+  const _Author._() : super._();
 
   @override
   String get id; // 작가 고유 ID

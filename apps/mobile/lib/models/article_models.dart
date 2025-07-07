@@ -19,7 +19,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 // Freezed에 의해 자동 생성되는 파일들
 part 'article_models.freezed.dart';  // 클래스 구현과 유틸리티 메서드들
-part 'article_models.g.dart';        // JSON 직렬화 메서드들
+// part 'article_models.g.dart';        // JSON 직렬화 메서드들 - Temporarily disabled
 
 /// 기사 상태 열거형
 /// 
@@ -78,6 +78,7 @@ enum ArticleVisibility {
 /// - updatedAt: 수정 일시
 @freezed
 class Article with _$Article {
+  const Article._();
   const factory Article({
     required String id,
     required String title,
@@ -152,8 +153,6 @@ class Article with _$Article {
     );
   }
 
-  /// Article 객체를 JSON으로 변환
-  Map<String, dynamic> toJson() => _$ArticleToJson(this);
 }
 
 /// 기사 목록 API 응답 모델

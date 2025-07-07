@@ -32,6 +32,7 @@ class FollowProvider with ChangeNotifier {
   // ============================================================================
   
   final FollowService _followService;
+  final logger = loggerInstance;
   
   // ============================================================================
   // 📊 상태 변수들

@@ -1152,7 +1152,10 @@ class _HomeScreenState extends State<HomeScreen>
     Navigator.push(
       context,
       CupertinoPageRoute(
-        builder: (context) => ArticleDetailScreen(article: article),
+        builder: (context) => ArticleDetailScreen(
+          articleId: article['id']?.toString() ?? '',
+          article: null, // We'll load the article in the detail screen
+        ),
       ),
     );
   }

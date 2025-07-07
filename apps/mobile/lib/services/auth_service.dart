@@ -39,6 +39,7 @@ class AuthService {
   final Dio _dio;                                       // HTTP 클라이언트
   final SecureStorageService _secureStorage;             // 보안 저장소
   final DeviceInfoPlugin _deviceInfo = DeviceInfoPlugin(); // 디바이스 정보 플러그인
+  final logger = loggerInstance;                        // 로거 인스턴스
   
   // 토큰 갱신 동시성 제어를 위한 변수들
   Future<void>? _refreshTokenFuture;                    // 진행 중인 토큰 갱신 작업
